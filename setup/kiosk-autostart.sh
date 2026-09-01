@@ -19,12 +19,25 @@ until curl -s -o /dev/null http://localhost:5000/; do
   sleep 1
 done
 
+# --- Detectar qué binario de Chromium existe (varía según la versión de
+#     Raspberry Pi OS: "chromium" en las más recientes, "chromium-browser"
+#     en las anteriores). Así el script funciona en ambas sin tocar nada. ---
+if command -v chromium-browser &> /dev/null; then
+  CHROMIUM_BIN="chromium-browser"
+elif command -v chromium &> /dev/null; then
+  CHROMIUM_BIN="chromium"
+else
+  echo "ERROR: no se encontró ni 'chromium' ni 'chromium-browser' instalado." >&2
+  echo "Instálalo con: sudo apt install -y chromium" >&2
+  exit 1
+fi
+
 # --- Lanzar Chromium en modo kiosko, nativo en Wayland ---
 # --ozone-platform=wayland: renderiza directo en Wayland en vez de caer a
 #   XWayland (la capa de compatibilidad con X11), más eficiente en un Pi 3.
 # --noerrdialogs / --disable-infobars: sin popups de "Chromium no se cerró bien" etc.
 # --incognito: no guarda historial/caché entre sesiones (pantalla compartida por la familia)
-chromium-browser \
+"$CHROMIUM_BIN" \
   --ozone-platform=wayland \
   --kiosk \
   --noerrdialogs \
