@@ -1,0 +1,41 @@
+<!--
+  setup/labwc-keybinds-snippet.xml
+
+  Esto NO se instala solo (a diferencia de los demás archivos de /setup).
+  Es un fragmento para pegar a mano dentro de la sección <keyboard> de:
+    ~/.config/labwc/rc.xml
+
+  Por qué a mano: sobrescribir todo el rc.xml podría borrar otros atajos
+  que ya tengas configurados. Mejor abrir el archivo, buscar (o crear) la
+  etiqueta <keyboard> ... </keyboard>, y pegar estos 3 <keybind> dentro.
+
+  IMPORTANTE: sustituye __PROJECT_DIR__ por la ruta real y completa de tu
+  proyecto (ejecuta "pwd" dentro de la carpeta para verla) — a diferencia
+  de los demás archivos de /setup, este no lo instala install.sh
+  automáticamente, así que el reemplazo hay que hacerlo a mano aquí.
+
+  Sirve como RED DE SEGURIDAD si la pantalla táctil deja de responder:
+  con un teclado físico conectado al Pi (aunque sea solo para esta emergencia),
+  puedes recuperar el control sin depender de la app ni de SSH.
+
+  Nota: labwc usa la sintaxis de Openbox 3.6 a propósito (para no reinventar
+  el formato), pero en su documentación oficial la acción "Execute" se
+  escribe con el comando como ATRIBUTO (command="..."), no como una
+  etiqueta <command> anidada — por eso este snippet se ve un poco distinto
+  al que usaríamos en Openbox puro.
+-->
+
+<keybind key="C-A-k">
+  <!-- Ctrl+Alt+K: cierra Chromium, deja ver el escritorio (como el botón "Salir" de Settings) -->
+  <action name="Execute" command="pkill -f chromium" />
+</keybind>
+
+<keybind key="C-A-r">
+  <!-- Ctrl+Alt+R: relanza el kiosko sin tener que reiniciar el Pi entero -->
+  <action name="Execute" command="__PROJECT_DIR__/setup/kiosk-autostart.sh" />
+</keybind>
+
+<keybind key="C-A-t">
+  <!-- Ctrl+Alt+T: abre una terminal, para trastear directamente si hace falta -->
+  <action name="Execute" command="lxterminal" />
+</keybind>

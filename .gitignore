@@ -1,0 +1,31 @@
+# Base de datos local (contiene datos reales de la familia una vez en uso)
+*.db
+*.sqlite
+*.sqlite3
+
+# Entornos virtuales de Python
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+
+# Credenciales y secretos (para las fases 2/3: Google OAuth, API keys, etc.)
+.env
+*.env
+credentials.json
+token.json
+client_secret*.json
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Fotos reales de la familia: NUNCA al repo. El código que las lee sí va,
+# el contenido de la carpeta no.
+photos/*
+!photos/.gitkeep
+
+# Editor
+.vscode/
+.idea/

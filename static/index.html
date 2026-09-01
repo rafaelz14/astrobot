@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Prototipo v3 — Calendario Familiar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000000; --card:#0d0d0d; --sidebar:#080808;
+    --fg:#eaeaea; --fg-dim:#8a8a8a; --fg-faint:#4a4a4a; --line:#242424;
+    --accent-cal:#7aa7ff; --accent-task:#ff9d61; --accent-meal:#ff6b6b;
+    --accent-weather:#7de0c0; --accent-photo:#c58bff; --accent-recipe:#ffd76a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{ background:var(--bg); color:var(--fg); font-family:"Roboto Condensed",sans-serif; font-weight:300; width:100%; height:100%; overflow:hidden;}
+  button{ font-family:inherit; border:none; background:none; color:inherit; cursor:pointer; }
+  input,select{ font-family:inherit; }
+
+  .device{
+    width:100%; max-width:1500px; aspect-ratio:16/10; margin:0 auto; position:relative;
+    background:var(--bg); border-radius:4px; overflow:hidden;
+    display:grid; grid-template-columns:150px 1fr;
+  }
+  .device.photo-mode{ grid-template-columns:1fr; }
+  .device.photo-mode .sidebar{ display:none; }
+
+  /* ===================== SIDEBAR ===================== */
+  .sidebar{ background:var(--sidebar); border-right:1px solid var(--line); padding:22px 0 14px; display:flex; flex-direction:column; }
+  .sidebar-logo{ font-size:17px; font-weight:500; padding:0 14px 22px; letter-spacing:0.2px; line-height:1.15; }
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:13px 6px; font-size:11.5px; color:var(--fg-dim); text-align:center; border-left:2px solid transparent; }
+  .nav-item .nav-icon{ font-size:19px; }
+  .nav-item.active{ color:var(--fg); background:rgba(255,255,255,0.04); border-left-color:var(--fg); }
+  .nav-item:active{ background:rgba(255,255,255,0.06); }
+
+  /* ===================== CONTENT AREA ===================== */
+  .content{ position:relative; overflow:hidden; }
+  .view{ position:absolute; inset:0; padding:30px 36px 22px; display:none; flex-direction:column; gap:16px; overflow-y:auto; }
+  .view.active{ display:flex; }
+
+  .topbar{ display:flex; justify-content:space-between; align-items:flex-start; flex-shrink:0; }
+  .datetime .time{ font-size:38px; font-weight:300; line-height:1; }
+  .datetime .date{ font-size:13px; color:var(--fg-dim); text-transform:capitalize; margin-top:4px; }
+  .weather-mini{ display:flex; align-items:center; gap:12px; padding:7px 16px; border:1px solid var(--line); border-radius:40px; }
+  .weather-mini .icon{ font-size:22px; } .weather-mini .temp{ font-size:20px; }
+  .weather-mini .range{ font-size:10px; color:var(--fg-dim); }
+
+  .weather-mini-global{ position:absolute; top:24px; right:32px; z-index:30; background:var(--bg); }
+  .device.photo-mode .weather-mini-global{ display:none; }
+
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .card-header{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px; }
+  .card-title{ font-size:10.5px; letter-spacing:2px; text-transform:uppercase; font-weight:500; }
+  .card-sub{ font-size:11px; color:var(--fg-dim); }
+  .chevron{ font-size:13px; color:var(--fg-faint); }
+  .page-title{ font-size:20px; margin-bottom:2px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; padding-right:120px; }
+  .page-sub{ font-size:12px; color:var(--fg-dim); margin-bottom:2px; flex-shrink:0; }
+
+  .btn-solid{ padding:9px 16px; border-radius:20px; font-size:12px; display:inline-flex; align-items:center; gap:6px; }
+
+  /* ===================== HOME ===================== */
+  .main{ display:grid; grid-template-columns:1fr 260px; gap:16px; min-height:480px; }
+  .left-col{ display:flex; flex-direction:column; gap:16px; }
+  .week-card{ flex:1; display:flex; flex-direction:column; }
+  .week-card .card-title{ color:var(--accent-cal); }
+  .week-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; flex:1; }
+  .day-col{ display:flex; flex-direction:column; gap:6px; border-radius:9px; padding:8px 6px; background:rgba(255,255,255,0.015); cursor:pointer; }
+  .day-col:active{ background:rgba(255,255,255,0.05); }
+  .day-col.today{ background:rgba(122,167,255,0.08); border:1px solid rgba(122,167,255,0.25); }
+  .day-name{ font-size:9.5px; text-transform:uppercase; color:var(--fg-dim); letter-spacing:1px; text-align:center; }
+  .day-num{ font-size:16px; margin-top:2px; text-align:center; }
+  .today .day-num{ color:#000; background:var(--accent-cal); width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:2px auto 0; font-weight:700; font-size:11px; }
+  .day-events{ display:flex; flex-direction:column; gap:4px; margin-top:2px; }
+  .ev{ font-size:9px; padding:2px 5px; border-radius:4px; color:#0a0a0a; font-weight:500; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
+  .bottom-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; height:36%; }
+  .task-card, .meal-card{ cursor:pointer; }
+  .task-card .card-title{ color:var(--accent-task); }
+  .task-list-mini{ display:flex; flex-direction:column; gap:9px; }
+  .task-row{ display:flex; align-items:center; gap:9px; }
+  .task-box{ width:14px; height:14px; border:1.5px solid var(--accent-task); border-radius:4px; flex-shrink:0; }
+  .task-row.done .task-box{ background:var(--accent-task); }
+  .task-row.done .task-label{ color:var(--fg-faint); text-decoration:line-through; }
+  .task-label{ font-size:12.5px; }
+  .meal-card .card-title{ color:var(--accent-meal); }
+  .meal-tag{ font-size:9.5px; text-transform:uppercase; letter-spacing:1px; color:var(--accent-meal); background:rgba(255,107,107,0.12); padding:3px 7px; border-radius:5px; }
+  .meal-dish{ font-size:13.5px; margin-top:5px; }
+
+  .right-col{ display:flex; flex-direction:column; gap:16px; }
+  .weather-card{ flex:1; }
+  .weather-card .card-title{ color:var(--accent-weather); }
+  .weather-now-big{ display:flex; align-items:center; gap:14px; margin-top:4px;}
+  .weather-now-big .icon{ font-size:36px; } .weather-now-big .temp{ font-size:30px; font-weight:300; }
+  .photo-card{ flex:1; padding:12px 14px; display:flex; flex-direction:column; cursor:pointer; }
+  .photo-card .card-title{ color:var(--accent-photo); }
+
+  .worldclock-card{ flex:1; }
+  .worldclock-card .card-title{ color:var(--accent-photo); }
+  .wc-row{ display:flex; justify-content:space-between; align-items:baseline; padding:9px 0; border-bottom:1px solid var(--line); }
+  .wc-row:last-child{ border-bottom:none; }
+  .wc-label{ font-size:13px; color:var(--fg); }
+  .wc-time{ font-size:15px; color:var(--fg-dim); font-family:"Roboto Mono", monospace; }
+
+  .tz-drag-row{ touch-action:none; } /* evita scroll accidental de la página al arrastrar en táctil */
+  .tz-drag-handle{ cursor:grab; color:var(--fg-faint); font-size:16px; padding:0 10px 0 2px; user-select:none; }
+  .tz-dragging{ opacity:0.5; background:rgba(255,255,255,0.05); }
+
+  .bottom-full-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; min-height:260px; }
+  .bottom-spacer{ /* a posta vacío: espacio reservado para algo futuro */ }
+  .photo-card-big{ padding:16px 18px; display:flex; flex-direction:column; cursor:pointer; }
+  .photo-card-big .card-title{ color:var(--accent-photo); }
+  .photo-card-big .photo-mini-stack{ flex:1; margin-top:8px; }
+  .photo-mini-stack{ flex:1; position:relative; border-radius:10px; overflow:hidden; margin-top:4px; }
+  .photo-mini{ position:absolute; inset:0; transition:opacity 0.6s; background-color:#000; }
+
+  /* ===================== LISTS ===================== */
+  .lists-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; flex:1; }
+  .list-col{ display:flex; flex-direction:column; }
+  .list-col-header{ display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .list-col-header .dot{ width:8px; height:8px; border-radius:50%; }
+  .list-col-title{ font-size:14px; font-weight:400; }
+  .list-item{ display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  .list-check{ width:18px; height:18px; border:1.5px solid var(--fg-dim); border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .list-item.done .list-check{ background:var(--fg-dim); color:#000; }
+  .list-item.done .list-item-text{ color:var(--fg-faint); text-decoration:line-through; }
+  .list-item-text{ font-size:14px; }
+  .add-item-row{ padding:10px 0; color:var(--fg-faint); font-size:13px; cursor:pointer; }
+  .add-item-input{ width:100%; background:none; border:none; border-bottom:1px solid var(--line); color:var(--fg); font-size:14px; padding:8px 0; outline:none; }
+
+  /* ===================== CALENDAR FULL ===================== */
+  .cal-week-strip{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+  .cal-week-strip .wnav{ font-size:14px; color:var(--fg-dim); padding:4px 10px; cursor:pointer; }
+  .month-dow-row{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; flex-shrink:0; }
+  .month-grid{ display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; gap:8px; flex:1; min-height:0; }
+  .month-dow{ font-size:10px; color:var(--fg-faint); text-align:center; text-transform:uppercase; letter-spacing:1px; padding-bottom:2px; }
+  .month-day{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px; font-size:12px; color:var(--fg-dim); min-height:62px; cursor:pointer; display:flex; flex-direction:column; gap:3px; }
+  .month-day:active{ background:rgba(255,255,255,0.04); }
+  .month-day .mnum{ font-size:13px; color:var(--fg); }
+  .month-day.today{ border-color:var(--accent-cal); }
+  .month-day.other{ opacity:0.3; }
+  .month-day .mev{ font-size:9px; padding:2px 5px; border-radius:4px; color:#0a0a0a; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
+  /* ===================== MEALS ===================== */
+  .meal-grid{ flex:1; display:grid; grid-template-columns:70px repeat(7,1fr); grid-template-rows:auto 1fr 1fr 1fr; gap:8px; }
+  .meal-grid .mh{ font-size:10px; color:var(--fg-dim); text-align:center; text-transform:uppercase; letter-spacing:1px; align-self:center; }
+  .meal-grid .mh.today-h{ color:var(--accent-meal); font-weight:500; }
+  .meal-row-label{ font-size:10px; color:var(--fg-dim); display:flex; align-items:center; text-transform:uppercase; letter-spacing:1px; }
+  .meal-cell{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px; font-size:11px; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--fg-dim); cursor:pointer; }
+  .meal-cell.filled{ color:var(--fg); background:rgba(255,107,107,0.05); border-color:rgba(255,107,107,0.15); }
+  .meal-cell.today-c{ border-color:rgba(255,107,107,0.4); }
+
+  /* ===================== RECIPES ===================== */
+  .recipe-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; flex:1; overflow-y:auto; }
+  .recipe-card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:8px; }
+  .recipe-tag{ font-size:9.5px; text-transform:uppercase; letter-spacing:1px; color:var(--accent-recipe); background:rgba(255,215,106,0.12); padding:3px 7px; border-radius:5px; width:fit-content; }
+  .recipe-name{ font-size:15px; } .recipe-ing{ font-size:11px; color:var(--fg-dim); line-height:1.5; }
+  .note-inline{ font-size:11px; color:var(--fg-faint); font-family:"Roboto Mono",monospace; }
+
+  /* ===================== PHOTOS FULLSCREEN ===================== */
+  #view-photos{ padding:0; }
+  .photo-full{ position:absolute; inset:0; transition:opacity 0.8s; background-color:#000; }
+  .photo-full-caption{ position:absolute; bottom:34px; left:36px; font-size:18px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,0.7); }
+  .photo-dots{ position:absolute; bottom:18px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:3; }
+  .pdot{ width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.35); }
+  .pdot.active{ background:#fff; }
+  .photo-back{ position:absolute; top:24px; left:28px; z-index:5; padding:9px 16px; border-radius:30px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:13px; }
+
+  /* ===================== SETTINGS ===================== */
+  .settings-list{ display:flex; flex-direction:column; gap:2px; }
+  .settings-row{ display:flex; justify-content:space-between; align-items:center; padding:16px 4px; border-bottom:1px solid var(--line); font-size:14px; }
+  .settings-row .srval{ color:var(--fg-dim); font-size:12px; }
+
+  /* ===================== MODALS ===================== */
+  .modal-backdrop{ position:absolute; inset:0; background:rgba(0,0,0,0.65); display:none; align-items:center; justify-content:center; z-index:60; }
+  .modal-backdrop.active{ display:flex; }
+  .modal-card{ background:#111214; border:1px solid var(--line); border-radius:16px; padding:26px 28px; width:420px; max-height:82%; overflow-y:auto; position:relative; }
+  .modal-close{ position:absolute; top:16px; right:18px; font-size:16px; color:var(--fg-dim); cursor:pointer; }
+  .modal-title{ font-size:18px; margin-bottom:2px; text-transform:capitalize; }
+  .modal-sub{ font-size:12px; color:var(--fg-dim); margin-bottom:16px; }
+  .modal-event{ display:flex; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); }
+  .modal-event .mtime{ font-size:12px; color:var(--fg-dim); width:44px; flex-shrink:0; }
+  .modal-event .mdot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .modal-event .mname{ flex:1; font-size:14px; }
+  .modal-event .mowner{ font-size:10px; padding:3px 8px; border-radius:10px; background:rgba(255,255,255,0.06); color:var(--fg-dim); flex-shrink:0; }
+  .modal-empty{ font-size:13px; color:var(--fg-dim); padding:16px 0; }
+  .modal-add-btn{ margin-top:16px; width:100%; padding:12px; border-radius:10px; background:var(--accent-cal); color:#000; text-align:center; font-size:13px; font-weight:500; }
+  .form-row{ display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+  .form-row label{ font-size:10.5px; color:var(--fg-dim); text-transform:uppercase; letter-spacing:1px; }
+  .form-row input, .form-row select, .form-row textarea{ background:#000; border:1px solid var(--line); border-radius:8px; padding:10px; color:var(--fg); font-size:14px; }
+  .modal-submit{ width:100%; padding:12px; border-radius:10px; background:var(--accent-cal); color:#000; font-size:14px; margin-top:4px; font-weight:500; }
+  .owner-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .owner-pill{ padding:6px 12px; border-radius:16px; font-size:12px; border:1px solid var(--line); color:var(--fg-dim); cursor:pointer; }
+  .owner-pill.selected{ border-color:var(--fg); color:var(--fg); background:rgba(255,255,255,0.06); }
+
+  .note{ max-width:1500px; margin:8px auto 0; padding:0 40px; font-family:"Roboto Mono", monospace; font-size:10.5px; color:#4a4a4a; text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="device" id="device">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">AstroBot</div>
+    <div class="nav-item active" data-view="home" onclick="go(this,'home')"><span class="nav-icon">⌂</span>Home</div>
+    <div class="nav-item" data-view="calendar" onclick="go(this,'calendar')"><span class="nav-icon">▦</span>Calendar</div>
+    <div class="nav-item" data-view="lists" onclick="go(this,'lists')"><span class="nav-icon">☰</span>Lists</div>
+    <div class="nav-item" data-view="meals" onclick="go(this,'meals')"><span class="nav-icon">◉</span>Meals</div>
+    <div class="nav-item" data-view="recipes" onclick="go(this,'recipes')"><span class="nav-icon">▤</span>Recipes</div>
+    <div class="nav-item" data-view="photos" onclick="enterPhotoMode()"><span class="nav-icon">▢</span>Photos</div>
+    <div style="flex:1;"></div>
+    <div class="nav-item" data-view="settings" onclick="go(this,'settings')"><span class="nav-icon">⚙</span>Settings</div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- HOME -->
+    <div class="view active" id="view-home">
+      <div class="topbar">
+        <div class="datetime"><div class="time" id="home-clock-time">—:—</div><div class="date" id="home-clock-date">—</div></div>
+      </div>
+      <div class="main">
+        <div class="left-col">
+          <div class="card week-card">
+            <div class="card-header"><span class="card-title">Esta semana</span><span class="card-sub" id="week-range-label">—</span></div>
+            <div class="week-grid" id="week-grid"></div>
+          </div>
+          <div class="bottom-row">
+            <div class="card task-card" onclick="navTo('lists')">
+              <div class="card-header"><span class="card-title">To-Do</span><span class="chevron">›</span></div>
+              <div id="home-todo-list" class="task-list-mini"></div>
+            </div>
+            <div class="card meal-card" onclick="navTo('meals')">
+              <div class="card-header"><span class="card-title">Menú</span><span class="chevron">›</span></div>
+              <span class="meal-tag">Cena de hoy</span>
+              <div class="meal-dish" id="home-meal-dish">Cargando...</div>
+            </div>
+          </div>
+        </div>
+        <div class="right-col">
+          <div class="card weather-card">
+            <div class="card-header"><span class="card-title">Clima</span></div>
+            <div class="card-sub" id="weather-location-home" style="margin-bottom:6px;">—</div>
+            <div class="weather-now-big" id="weather-now-home"><span class="icon">—</span><span class="temp">—</span></div>
+            <div id="weather-feelslike-home" style="font-size:11px; color:var(--fg-dim); margin-top:2px;"></div>
+            <div id="weather-forecast-home" style="display:flex; gap:10px; margin-top:10px; font-size:11px; color:var(--fg-dim);"></div>
+            <div style="display:flex; gap:14px; margin-top:12px; padding-top:10px; border-top:1px solid var(--line); font-size:11px; color:var(--fg-dim);">
+              <div id="weather-moon-home">🌑 —</div>
+              <div id="weather-air-home">Aire: —</div>
+            </div>
+          </div>
+          <div class="card worldclock-card">
+            <div class="card-header"><span class="card-title">World Clock</span><span class="chevron" style="cursor:pointer;" onclick="openTimezoneModal()">⚙</span></div>
+            <div id="worldclock-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fila inferior: izquierda libre a posta, derecha = fotos ampliadas -->
+      <div class="bottom-full-row">
+        <div class="bottom-spacer"></div>
+        <div class="card photo-card-big" onclick="enterPhotoMode()">
+          <div class="card-header"><span class="card-title">Fotos</span><span class="chevron">⛶</span></div>
+          <div class="photo-mini-stack" id="home-photo-stack"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALENDAR -->
+    <div class="view" id="view-calendar">
+      <div class="page-title" style="color:var(--accent-cal)">
+        <span>Calendar</span>
+        <button class="btn-solid" style="background:var(--accent-cal); color:#000;" onclick="openAddEvent()">+ Add Event</button>
+      </div>
+      <div id="google-banner" style="display:none; align-items:center; gap:10px; background:rgba(255,215,106,0.1); border:1px solid rgba(255,215,106,0.3); border-radius:10px; padding:10px 14px; font-size:12px; color:var(--accent-recipe);">
+        ⚠️ Google Calendar todavía no está conectado — los eventos que veas aquí son solo los que crees dentro de esta app. Complétalo en Settings.
+      </div>
+      <div class="cal-week-strip"><span class="wnav" onclick="navigateMonth(-1)">‹</span><span class="page-sub" id="cal-month-label">Agosto 2026</span><span class="wnav" onclick="navigateMonth(1)">›</span></div>
+      <div class="month-dow-row" id="month-dow-row"></div>
+      <div class="month-grid" id="month-grid"></div>
+    </div>
+
+    <!-- LISTS -->
+    <div class="view" id="view-lists">
+      <div class="page-title" style="color:var(--accent-task)">Lists</div>
+      <div class="lists-grid">
+        <div class="list-col">
+          <div class="list-col-header"><div class="dot" style="background:#7de0c0"></div><div class="list-col-title">Grocery List</div></div>
+          <div id="grocery-items"></div>
+          <div class="add-item-row" onclick="showAddInput('grocery-items','grocery')">+ Add item</div>
+          <div class="add-item-row" style="text-decoration:underline;" onclick="openCompletedModal('grocery')">Ver completadas</div>
+        </div>
+        <div class="list-col">
+          <div class="list-col-header"><div class="dot" style="background:#ff9d61"></div><div class="list-col-title">To-Do List</div></div>
+          <div id="todo-items"></div>
+          <div class="add-item-row" onclick="showAddInput('todo-items','todo')">+ Add item</div>
+          <div class="add-item-row" style="text-decoration:underline;" onclick="openCompletedModal('todo')">Ver completadas</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEALS -->
+    <div class="view" id="view-meals">
+      <div class="page-title" style="color:var(--accent-meal)">
+        <span>Meals</span>
+        <button class="btn-solid" id="generate-btn" style="background:var(--accent-meal); color:#000;" onclick="generateMenu()">🎲 Generar menú</button>
+      </div>
+      <div class="meal-grid" id="meal-grid"></div>
+    </div>
+
+    <!-- RECIPES -->
+    <div class="view" id="view-recipes">
+      <div class="page-title" style="color:var(--accent-recipe)">Recipes</div>
+      <div class="page-sub" style="margin-bottom:10px;">Tu recetario — se usará para asignar comidas en Meals</div>
+      <div class="recipe-grid" id="recipe-grid"></div>
+    </div>
+
+    <!-- PHOTOS FULLSCREEN -->
+    <div class="view" id="view-photos">
+      <div class="photo-full" id="photo-full-el"></div>
+      <button class="photo-back" onclick="exitPhotoMode()">‹ Home</button>
+      <div class="photo-full-caption" id="photo-full-caption"></div>
+      <div class="photo-dots" id="photo-dots"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="view-settings">
+      <div class="page-title">Settings</div>
+      <div class="settings-list">
+        <div class="settings-row" onclick="openWifiModal()" style="cursor:pointer;">
+          <span>Wifi</span><span class="srval" id="settings-wifi-status">Comprobando... ›</span>
+        </div>
+        <div class="settings-row"><span>Calendarios conectados</span><span class="srval" id="settings-gcal-status">Comprobando... ›</span></div>
+        <div class="settings-row"><span>Ubicación para el clima</span><span class="srval" id="settings-weather-location">Comprobando... ›</span></div>
+        <div class="settings-row"><span>Álbum de fotos</span><span class="srval" id="settings-photos-status">Comprobando... ›</span></div>
+        <div class="settings-row"><span>Versión instalada</span><span class="srval" id="settings-version">—</span></div>
+      </div>
+
+      <div style="margin-top:24px; display:flex; gap:12px;">
+        <button class="btn-solid" style="background:#2a2a2a; color:var(--fg);" onclick="confirmExitKiosk()">⏏ Salir del kiosko</button>
+        <button class="btn-solid" style="background:var(--accent-cal); color:#000;" onclick="confirmUpdate()">⟳ Actualizar sistema</button>
+      </div>
+      <div class="note-inline" style="margin-top:8px;">
+        "Salir del kiosko" cierra la app y muestra el escritorio (para conectar un teclado y trabajar directamente).
+        "Actualizar sistema" descarga los últimos cambios del repositorio y reinicia el Pi entero.
+      </div>
+    </div>
+
+    <!-- Píldora de clima persistente: vive FUERA de las vistas, siempre visible
+         encima de cualquier pantalla activa (excepto en modo portaretrato) -->
+    <div class="weather-mini weather-mini-global" id="weather-mini-global">
+      <span class="icon">—</span><div><div class="temp">—</div><div class="range">Cargando...</div></div>
+    </div>
+
+  </div>
+
+  <!-- MODAL: wifi -->
+  <div class="modal-backdrop" id="modal-wifi">
+    <div class="modal-card">
+      <span class="modal-close" onclick="closeModal('modal-wifi')">✕</span>
+      <div class="modal-title">Wifi</div>
+      <div class="modal-sub" id="wifi-current-status">Comprobando conexión actual...</div>
+      <div id="wifi-network-list" style="display:flex; flex-direction:column; gap:2px; margin-bottom:14px;"></div>
+      <div class="modal-add-btn" onclick="scanWifi()" style="background:#2a2a2a; color:var(--fg); margin-bottom:8px;">🔄 Buscar redes</div>
+    </div>
+  </div>
+
+  <!-- MODAL: conectar a una red wifi concreta -->
+  <div class="modal-backdrop" id="modal-wifi-connect">
+    <div class="modal-card">
+      <span class="modal-close" onclick="closeModal('modal-wifi-connect')">✕</span>
+      <div class="modal-title" id="wifi-connect-ssid">—</div>
+      <div class="modal-sub">Introduce la contraseña de la red</div>
+      <div class="form-row"><label>Contraseña</label><input type="password" id="wifi-password" placeholder="••••••••"></div>
+      <div class="modal-submit" onclick="submitWifiConnect()">Conectar</div>
+      <div class="note-inline" id="wifi-connect-status" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: gestionar zonas horarias (World Clock) -->
+  <div class="modal-backdrop" id="modal-timezones">
+    <div class="modal-card">
+      <span class="modal-close" onclick="closeModal('modal-timezones')">✕</span>
+      <div class="modal-title">World Clock</div>
+      <div class="modal-sub">Solo se muestran las primeras 5 en Home (ordenadas por posición)</div>
+      <div id="timezone-list" style="display:flex; flex-direction:column; gap:2px; margin-bottom:16px;"></div>
+      <div class="form-row"><label>Etiqueta</label><input type="text" id="tz-label" placeholder="Ej. Tokio"></div>
+      <div class="form-row"><label>Zona IANA</label><input type="text" id="tz-zone" placeholder="Ej. Asia/Tokyo"></div>
+      <div class="modal-submit" onclick="submitAddTimezone()">Añadir zona</div>
+      <div class="note-inline" id="tz-add-status" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: tareas completadas (archivadas) -->
+  <div class="modal-backdrop" id="modal-completed">
+    <div class="modal-card">
+      <span class="modal-close" onclick="closeModal('modal-completed')">✕</span>
+      <div class="modal-title" id="completed-modal-title">Completadas</div>
+      <div class="modal-sub">Se archivan aquí 3 días después de tacharse, y desaparecen de la lista principal</div>
+      <div id="completed-list"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: detalle del día -->
+  <div class="modal-backdrop" id="modal-day">
+    <div class="modal-card">
+      <span class="modal-close" onclick="closeModal('modal-day')">✕</span>
+      <div class="modal-title" id="day-modal-title">—</div>
+      <div class="modal-sub" id="day-modal-sub">—</div>
+      <div id="day-modal-events"></div>
+      <div class="modal-add-btn" onclick="openAddEvent(currentModalDate)">+ Añadir evento este día</div>
+    </div>
+  </div>
+
+  <!-- MODAL: añadir evento -->
+  <div class="modal-backdrop" id="modal-add-event">
+    <div class="modal-card">
+      <span class="modal-close" onclick="closeModal('modal-add-event')">✕</span>
+      <div class="modal-title">Nuevo evento</div>
+      <div class="modal-sub">Elige cualquier fecha, no solo del mes actual</div>
+      <div class="form-row"><label>Fecha</label><input type="date" id="f-date"></div>
+      <div class="form-row"><label>Título</label><input type="text" id="f-title" placeholder="Ej. Dentista"></div>
+      <div class="form-row"><label>Hora</label><input type="time" id="f-time" value="18:00"></div>
+      <div class="form-row">
+        <label>Asignar a</label>
+        <div class="owner-row" id="owner-row">
+          <div class="owner-pill selected" data-owner="Familia" data-color="#ffd76a" onclick="selectOwner(this)">Familia</div>
+          <div class="owner-pill" data-owner="Rafael" data-color="#7aa7ff" onclick="selectOwner(this)">Rafael</div>
+          <div class="owner-pill" data-owner="Laura" data-color="#c9a7ff" onclick="selectOwner(this)">Laura</div>
+          <div class="owner-pill" data-owner="Joaquín" data-color="#7de0c0" onclick="selectOwner(this)">Joaquín</div>
+          <div class="owner-pill" data-owner="Sienna" data-color="#ff9dc4" onclick="selectOwner(this)">Sienna</div>
+        </div>
+      </div>
+      <div class="modal-submit" onclick="submitAddEvent()">Guardar evento</div>
+      <div class="note-inline" style="margin-top:10px;">* Sincronización con Google Calendar se conectará en el backend</div>
+    </div>
+  </div>
+
+  <!-- MODAL: detalle/edición de comida -->
+  <div class="modal-backdrop" id="modal-meal">
+    <div class="modal-card">
+      <span class="modal-close" onclick="closeModal('modal-meal')">✕</span>
+      <div class="modal-title" id="meal-modal-title">—</div>
+      <div class="modal-sub" id="meal-modal-sub">—</div>
+      <div class="form-row"><label>Receta asignada</label><input type="text" id="meal-current-dish" readonly></div>
+      <div class="form-row">
+        <label>Cambiar por</label>
+        <select id="meal-recipe-select"></select>
+      </div>
+      <div class="modal-submit" onclick="submitMealChange()">Actualizar</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note">PROTOTIPO v3 — tarjetas de día, eventos con owner, listas tachables, edición de comidas, modo portaretrato</div>
+
+<script>
+  /* ============ DATOS ============ */
+  const owners = {
+    'Rafael':'#7aa7ff', 'Laura':'#c9a7ff', 'Joaquín':'#7de0c0', 'Sienna':'#ff9dc4', 'Familia':'#ffd76a'
+  };
+
+  // eventsByDate: caché ÚNICA de eventos, indexada por fecha completa "YYYY-MM-DD"
+  // (no solo el día del mes) — así datos de la semana actual (Home) y del mes que
+  // se esté navegando en Calendar conviven sin pisarse entre sí.
+  let eventsByDate = {};
+  let googleConfigured = false;
+
+  const REAL_TODAY = new Date();
+  const TODAY_NUM = REAL_TODAY.getDate();
+  const TODAY_MONTH = REAL_TODAY.getMonth();
+  const TODAY_YEAR = REAL_TODAY.getFullYear();
+
+  // viewMonth/viewYear SÍ cambian al navegar con ‹ › en la pantalla Calendar
+  let viewMonth = TODAY_MONTH;
+  let viewYear = TODAY_YEAR;
+
+  // recipesData y mealPlan ya NO son fijos: se cargan desde la API en INIT (más abajo)
+  let recipesData = [];
+  let mealPlan = {
+    Desayuno: {Lun:null,Mar:null,Mié:null,Jue:null,Vie:null,Sáb:null,Dom:null},
+    Comida:   {Lun:null,Mar:null,Mié:null,Jue:null,Vie:null,Sáb:null,Dom:null},
+    Cena:     {Lun:null,Mar:null,Mié:null,Jue:null,Vie:null,Sáb:null,Dom:null}
+  };
+  // guarda también el recipe_id de cada celda, en paralelo a mealPlan (que solo tiene el nombre)
+  let mealRecipeIds = {
+    Desayuno: {}, Comida: {}, Cena: {}
+  };
+
+  // "photos" empieza con los gradientes de ejemplo (fallback visual);
+  // loadPhotos() los sustituye por fotos reales si hay alguna en /api/photos.
+  let photos = [
+    {cls:'photo-beach', caption:'Ejemplo — añade tus fotos en /photos', demo:true},
+    {cls:'photo-birthday', caption:'Ejemplo — añade tus fotos en /photos', demo:true},
+    {cls:'photo-mountain', caption:'Ejemplo — añade tus fotos en /photos', demo:true}
+  ];
+
+  // groceryData y todoData ya NO son fijos: se cargan desde /api/tasks en INIT
+  let groceryData = [];
+  let todoData = [];
+
+  const API = ''; // mismo origen (Flask sirve el frontend y la API juntos)
+
+  let currentModalDate = null; // "YYYY-MM-DD" del día abierto en el modal
+  let selectedOwner = 'Familia';
+  let currentMealSlot = null; // {slot:'Cena', dayKey:'Vie'}
+
+  /* ============ HELPERS ============ */
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function isoDate(y, m, d){ return `${y}-${pad2(m+1)}-${pad2(d)}`; }
+  function todayIso(){ return isoDate(TODAY_YEAR, TODAY_MONTH, TODAY_NUM); }
+
+  function dateLabelFull(isoStr){
+    const [y,m,d] = isoStr.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    let s = dt.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function shortDow(dt){
+    return dt.toLocaleDateString('es-ES', {weekday:'short'}).replace('.','').replace(/^(.)/, c => c.toUpperCase());
+  }
+  function daysInMonth(m,y){ return new Date(y, m+1, 0).getDate(); }
+  function firstWeekdayMon0(m,y){ // 0=lunes
+    let wd = new Date(y,m,1).getDay(); // 0=domingo
+    return (wd === 0) ? 6 : wd - 1;
+  }
+
+  /* ============ GOOGLE CALENDAR (conectado a /api/events) ============ */
+  async function checkGoogleStatus(){
+    try{
+      const res = await fetch(`${API}/api/events/status`);
+      const data = await res.json();
+      googleConfigured = data.configured;
+    }catch(err){
+      googleConfigured = false;
+    }
+    updateGoogleBanner();
+  }
+
+  function updateGoogleBanner(){
+    const banner = document.getElementById('google-banner');
+    if(!banner) return;
+    banner.style.display = googleConfigured ? 'none' : 'flex';
+  }
+
+  /* ============ CACHÉ DE EVENTOS POR FECHA (parcheado por rango) ============ */
+  function isoAddDays(isoStr, delta){
+    const [y,m,d] = isoStr.split('-').map(Number);
+    const dt = new Date(y, m-1, d + delta);
+    return isoDate(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  }
+
+  async function fetchEventsRange(startIso, endIso){
+    try{
+      const res = await fetch(`${API}/api/events?start=${startIso}&end=${endIso}`);
+      const data = await res.json();
+      googleConfigured = data.configured;
+      updateGoogleBanner();
+
+      // El borrado pasa AQUÍ, justo antes de rellenar — nunca antes del
+      // await de la red. Así, ninguna otra función que esté corriendo en
+      // paralelo puede "colarse" entre que borramos y que rellenamos nuestra
+      // propia copia fresca (esa era la causa exacta de los duplicados).
+      for(let d = startIso; d <= endIso; d = isoAddDays(d, 1)){
+        delete eventsByDate[d];
+      }
+
+      (data.events || []).forEach(ev => {
+        if(ev.error) return; // calendario mal configurado, se ignora en pantalla
+        const startDate = new Date(ev.start);
+        const key = isoDate(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+        if(key < startIso || key > endIso) return; // fuera del rango pedido
+        const time = ev.start.includes('T')
+          ? `${pad2(startDate.getHours())}:${pad2(startDate.getMinutes())}`
+          : '';
+        if(!eventsByDate[key]) eventsByDate[key] = [];
+        eventsByDate[key].push({time, name: ev.title, owner: ev.owner || 'Familia'});
+      });
+      Object.keys(eventsByDate).forEach(k => {
+        if(k >= startIso && k <= endIso) eventsByDate[k].sort((a,b) => a.time.localeCompare(b.time));
+      });
+    }catch(err){
+      console.error('Error al cargar eventos', err);
+    }
+  }
+
+  async function loadHomeWeekEvents(){
+    const dow = (REAL_TODAY.getDay() === 0) ? 6 : REAL_TODAY.getDay() - 1; // 0=lunes
+    const mondayIso = isoAddDays(todayIso(), -dow);
+    const sundayIso = isoAddDays(mondayIso, 6);
+    await fetchEventsRange(mondayIso, sundayIso);
+    renderWeekGrid();
+  }
+
+  async function loadCalendarMonthEvents(){
+    const firstIso = isoDate(viewYear, viewMonth, 1);
+    const lastIso = isoDate(viewYear, viewMonth, daysInMonth(viewMonth, viewYear));
+    await fetchEventsRange(firstIso, lastIso);
+    renderMonthGrid();
+  }
+
+  function navigateMonth(delta){
+    viewMonth += delta;
+    if(viewMonth < 0){ viewMonth = 11; viewYear--; }
+    if(viewMonth > 11){ viewMonth = 0; viewYear++; }
+    updateMonthLabel();
+    loadCalendarMonthEvents();
+  }
+
+  function updateMonthLabel(){
+    const label = new Date(viewYear, viewMonth, 1)
+      .toLocaleDateString('es-ES', {month:'long', year:'numeric'})
+      .replace(/^(.)/, c => c.toUpperCase());
+    document.getElementById('cal-month-label').textContent = label;
+  }
+
+  function updateWeekRangeLabel(){
+    const dow = (REAL_TODAY.getDay() === 0) ? 6 : REAL_TODAY.getDay() - 1;
+    const mondayIso = isoAddDays(todayIso(), -dow);
+    const sundayIso = isoAddDays(mondayIso, 6);
+    const fmt = (iso) => {
+      const [y,m,d] = iso.split('-').map(Number);
+      return `${d} ${new Date(y,m-1,d).toLocaleDateString('es-ES',{month:'short'}).replace('.','')}`;
+    };
+    document.getElementById('week-range-label').textContent = `${fmt(mondayIso)}–${fmt(sundayIso)}`;
+  }
+
+  /* ============ RELOJ EN VIVO (Home) + WORLD CLOCK ============ */
+  let timezoneZones = []; // [{id, label, iana_zone, position}], cargadas de /api/timezones
+
+  function tickClocks(){
+    const now = new Date();
+    const timeEl = document.getElementById('home-clock-time');
+    const dateEl = document.getElementById('home-clock-date');
+    if(timeEl){
+      timeEl.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+    }
+    if(dateEl){
+      let s = now.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'});
+      dateEl.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    renderWorldClock();
+  }
+
+  function renderWorldClock(){
+    const list = document.getElementById('worldclock-list');
+    if(!list) return;
+    const shown = timezoneZones.slice(0, 5); // solo las primeras 5, como se pidió
+    if(shown.length === 0){
+      list.innerHTML = '<div class="modal-empty">Sin zonas configuradas.</div>';
+      return;
+    }
+    list.innerHTML = shown.map(z => {
+      let timeStr = '—';
+      try{
+        timeStr = new Intl.DateTimeFormat('es-ES', {
+          hour:'2-digit', minute:'2-digit', hour12:false, timeZone: z.iana_zone
+        }).format(new Date());
+      }catch(e){ timeStr = 'Error'; }
+      return `<div class="wc-row"><span class="wc-label">${z.label}</span><span class="wc-time">${timeStr}</span></div>`;
+    }).join('');
+  }
+
+  async function loadTimezones(){
+    try{
+      const res = await fetch(`${API}/api/timezones`);
+      timezoneZones = await res.json();
+    }catch(err){
+      console.error('Error al cargar zonas horarias', err);
+      timezoneZones = [];
+    }
+    renderWorldClock();
+  }
+
+  function openTimezoneModal(){
+    renderTimezoneModalList();
+    document.getElementById('tz-label').value = '';
+    document.getElementById('tz-zone').value = '';
+    document.getElementById('tz-add-status').textContent = '';
+    document.getElementById('modal-timezones').classList.add('active');
+  }
+
+  function renderTimezoneModalList(){
+    const list = document.getElementById('timezone-list');
+    list.innerHTML = timezoneZones.map((z, i) => `
+      <div class="list-item tz-drag-row" data-id="${z.id}" style="cursor:default;">
+        <div class="tz-drag-handle" title="Arrastrar para reordenar">⠿</div>
+        <div class="list-item-text">${z.label} <span style="color:var(--fg-faint); font-size:11px;">(${z.iana_zone})${i >= 5 ? ' — no visible en Home' : ''}</span></div>
+        <div style="margin-left:auto; color:var(--fg-dim); cursor:pointer; padding:0 6px;" onclick="deleteTimezone(${z.id})">✕</div>
+      </div>
+    `).join('') || '<div class="modal-empty">Sin zonas todavía.</div>';
+    attachTimezoneDragHandlers();
+  }
+
+  /* ---- Arrastrar para reordenar (Pointer Events: funciona con ratón y con el dedo) ---- */
+  function attachTimezoneDragHandlers(){
+    const list = document.getElementById('timezone-list');
+    let draggingRow = null;
+    let startY = 0;
+
+    list.querySelectorAll('.tz-drag-handle').forEach(handle => {
+      handle.addEventListener('pointerdown', (e) => {
+        draggingRow = handle.closest('.tz-drag-row');
+        startY = e.clientY;
+        draggingRow.classList.add('tz-dragging');
+        draggingRow.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+    });
+
+    list.addEventListener('pointermove', (e) => {
+      if(!draggingRow) return;
+      const rows = Array.from(list.querySelectorAll('.tz-drag-row'));
+      const draggingRect = draggingRow.getBoundingClientRect();
+      const midY = e.clientY;
+      for(const row of rows){
+        if(row === draggingRow) continue;
+        const rect = row.getBoundingClientRect();
+        const rowMid = rect.top + rect.height / 2;
+        if(midY < rowMid && draggingRect.top > rect.top){
+          list.insertBefore(draggingRow, row);
+          break;
+        }
+        if(midY > rowMid && draggingRect.top < rect.top){
+          list.insertBefore(draggingRow, row.nextSibling);
+          break;
+        }
+      }
+    });
+
+    list.addEventListener('pointerup', () => {
+      if(!draggingRow) return;
+      draggingRow.classList.remove('tz-dragging');
+      const newOrder = Array.from(list.querySelectorAll('.tz-drag-row')).map(r => parseInt(r.dataset.id, 10));
+      draggingRow = null;
+      submitReorderTimezones(newOrder);
+    });
+  }
+
+  async function submitReorderTimezones(orderIds){
+    try{
+      const res = await fetch(`${API}/api/timezones/reorder`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({order: orderIds})
+      });
+      timezoneZones = await res.json();
+      renderTimezoneModalList();
+      renderWorldClock();
+    }catch(err){
+      console.error('Error al reordenar zonas horarias', err);
+    }
+  }
+
+  async function submitAddTimezone(){
+    const label = document.getElementById('tz-label').value.trim();
+    const zone = document.getElementById('tz-zone').value.trim();
+    const statusEl = document.getElementById('tz-add-status');
+    if(!label || !zone){ statusEl.textContent = 'Rellena ambos campos.'; return; }
+    try{
+      const res = await fetch(`${API}/api/timezones`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({label, iana_zone: zone})
+      });
+      const data = await res.json();
+      if(!res.ok){
+        statusEl.textContent = data.error || 'No se pudo añadir.';
+        return;
+      }
+      await loadTimezones();
+      renderTimezoneModalList();
+      document.getElementById('tz-label').value = '';
+      document.getElementById('tz-zone').value = '';
+      statusEl.textContent = '✓ Añadida.';
+    }catch(err){
+      statusEl.textContent = 'Error de conexión con el servidor.';
+    }
+  }
+
+  async function deleteTimezone(id){
+    try{
+      await fetch(`${API}/api/timezones/${id}`, {method:'DELETE'});
+      await loadTimezones();
+      renderTimezoneModalList();
+    }catch(err){
+      console.error('Error al borrar zona horaria', err);
+    }
+  }
+
+  /* ============ NAV ============ */
+  function go(el, view){
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+  }
+  function navTo(view){
+    const item = document.querySelector('.nav-item[data-view="' + view + '"]');
+    if(item){ go(item, view); }
+  }
+  function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+
+  /* ============ RENDER: WEEK GRID (Home) — siempre la semana real actual ============ */
+  function renderWeekGrid(){
+    const wrap = document.getElementById('week-grid');
+    wrap.innerHTML = '';
+    const dow = (REAL_TODAY.getDay() === 0) ? 6 : REAL_TODAY.getDay() - 1; // 0=lunes
+    const mondayIso = isoAddDays(todayIso(), -dow);
+    for(let i=0; i<7; i++){
+      const iso = isoAddDays(mondayIso, i);
+      const [y,m,d] = iso.split('-').map(Number);
+      const dt = new Date(y, m-1, d);
+      const isToday = (iso === todayIso());
+      const evs = eventsByDate[iso] || [];
+      const col = document.createElement('div');
+      col.className = 'day-col' + (isToday ? ' today' : '');
+      col.onclick = () => openDayModal(iso);
+      col.innerHTML = `
+        <div class="day-name">${shortDow(dt)}</div>
+        <div class="day-num">${d}</div>
+        <div class="day-events">${evs.slice(0,2).map(e => `<div class="ev" style="background:${owners[e.owner] || owners['Familia']}">${e.name}</div>`).join('')}</div>
+      `;
+      wrap.appendChild(col);
+    }
+  }
+
+  /* ============ RENDER: MONTH GRID (Calendar) — el mes que se esté navegando ============ */
+  function renderMonthGrid(){
+    const dowRow = document.getElementById('month-dow-row');
+    dowRow.innerHTML = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d => `<div class="month-dow">${d}</div>`).join('');
+
+    const grid = document.getElementById('month-grid');
+    grid.innerHTML = '';
+    const totalDays = daysInMonth(viewMonth, viewYear);
+    const offset = firstWeekdayMon0(viewMonth, viewYear);
+    const prevMonthDays = daysInMonth(viewMonth-1, viewYear);
+
+    for(let i=0; i<offset; i++){
+      const num = prevMonthDays - offset + 1 + i;
+      grid.innerHTML += `<div class="month-day other"><div class="mnum">${num}</div></div>`;
+    }
+    for(let n=1; n<=totalDays; n++){
+      const iso = isoDate(viewYear, viewMonth, n);
+      const evs = eventsByDate[iso] || [];
+      const isToday = (iso === todayIso());
+      grid.innerHTML += `
+        <div class="month-day${isToday ? ' today':''}" onclick="openDayModal('${iso}')">
+          <div class="mnum">${n}</div>
+          ${evs.slice(0,2).map(e => `<div class="mev" style="background:${owners[e.owner] || owners['Familia']}">${e.name}</div>`).join('')}
+        </div>`;
+    }
+    const totalCells = offset + totalDays;
+    const remainder = (7 - (totalCells % 7)) % 7;
+    for(let i=1; i<=remainder; i++){
+      grid.innerHTML += `<div class="month-day other"><div class="mnum">${i}</div></div>`;
+    }
+  }
+
+  /* ============ MODAL: día ============ */
+  function openDayModal(isoStr){
+    currentModalDate = isoStr;
+    document.getElementById('day-modal-title').textContent = dateLabelFull(isoStr);
+    const evs = eventsByDate[isoStr] || [];
+    document.getElementById('day-modal-sub').textContent = evs.length ? (evs.length + (evs.length===1?' evento':' eventos')) : 'Sin eventos';
+    const list = document.getElementById('day-modal-events');
+    list.innerHTML = evs.length ? evs.map(e => `
+      <div class="modal-event">
+        <div class="mtime">${e.time}</div>
+        <div class="mdot" style="background:${owners[e.owner] || owners['Familia']}"></div>
+        <div class="mname">${e.name}</div>
+        <div class="mowner">${e.owner}</div>
+      </div>
+    `).join('') : '<div class="modal-empty">No hay eventos este día.</div>';
+    document.getElementById('modal-day').classList.add('active');
+  }
+
+  /* ============ MODAL: añadir evento (conectado a /api/events) ============ */
+  function openAddEvent(isoStr){
+    closeModal('modal-day');
+    document.getElementById('f-date').value = isoStr || currentModalDate || todayIso();
+    document.getElementById('f-date').min = todayIso(); // bloquea fechas pasadas en el propio selector
+    document.getElementById('f-title').value = '';
+    document.getElementById('f-time').value = '18:00';
+    selectedOwner = 'Familia';
+    document.querySelectorAll('.owner-pill').forEach(p => p.classList.toggle('selected', p.dataset.owner === 'Familia'));
+    document.getElementById('modal-add-event').classList.add('active');
+  }
+  function selectOwner(el){
+    document.querySelectorAll('.owner-pill').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedOwner = el.dataset.owner;
+  }
+  async function submitAddEvent(){
+    const dateStr = document.getElementById('f-date').value; // "YYYY-MM-DD"
+    const title = document.getElementById('f-title').value.trim();
+    const time = document.getElementById('f-time').value; // "HH:MM"
+    if(!title || !dateStr) return;
+
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const [hh, mm] = time.split(':').map(Number);
+    const startDate = new Date(y, m-1, d, hh, mm);
+    const endDate = new Date(startDate.getTime() + 60*60*1000); // 1h de duración por defecto
+    const toLocalIso = (dt) => `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}T${pad2(dt.getHours())}:${pad2(dt.getMinutes())}:00`;
+
+    try{
+      const res = await fetch(`${API}/api/events`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          owner: selectedOwner,
+          title,
+          start: toLocalIso(startDate),
+          end: toLocalIso(endDate),
+        })
+      });
+      if(!res.ok){
+        let err = {};
+        try{ err = await res.json(); }
+        catch(parseErr){ err = { error: `Error del servidor (HTTP ${res.status})` }; }
+        if(err.configured === false){
+          alert('Google Calendar todavía no está conectado. Revisa Settings para completar la configuración.');
+        } else {
+          alert('No se pudo crear el evento: ' + (err.error || 'error desconocido'));
+        }
+        return;
+      }
+      closeModal('modal-add-event');
+      // Refresca lo que corresponda: si el evento cae en el mes que se está
+      // viendo en Calendar, o en la semana real de Home, o ambos.
+      const eventMonth = m - 1, eventYear = y;
+      const refreshes = [loadHomeWeekEvents()];
+      if(eventMonth === viewMonth && eventYear === viewYear){
+        refreshes.push(loadCalendarMonthEvents());
+      }
+      await Promise.all(refreshes);
+      if(dateStr === currentModalDate){ openDayModal(dateStr); }
+    }catch(err){
+      console.error('Error al crear evento', err);
+      alert('No se pudo conectar con el servidor.');
+    }
+  }
+
+  /* ============ LISTS (conectado a /api/tasks) ============ */
+  function renderList(containerId, data, kind){
+    const el = document.getElementById(containerId);
+    el.innerHTML = data.map((item) => `
+      <div class="list-item${item.done ? ' done':''}" onclick="toggleItem('${kind}',${item.id})">
+        <div class="list-check">${item.done ? '✓':''}</div>
+        <div class="list-item-text">${item.text}</div>
+      </div>
+    `).join('');
+    if(kind === 'todo') renderHomeTodoPreview();
+  }
+
+  // Preview de To-Do en Home: siempre refleja el estado real de todoData,
+  // sin importar desde qué pantalla se haya modificado (Lists o Home).
+  function renderHomeTodoPreview(){
+    const el = document.getElementById('home-todo-list');
+    if(!el) return;
+    const pending = todoData.filter(t => !t.done);
+    if(pending.length === 0){
+      el.innerHTML = '<div style="color:var(--fg-dim); font-size:13px; padding:4px 0;">No hay tareas pendientes</div>';
+      return;
+    }
+    el.innerHTML = pending.slice(0, 3).map(t => `
+      <div class="task-row"><div class="task-box"></div><div class="task-label">${t.text}</div></div>
+    `).join('');
+  }
+
+  async function loadTasks(kind){
+    const res = await fetch(`${API}/api/tasks?list=${kind}`);
+    const data = await res.json();
+    if(kind === 'grocery'){ groceryData = data; renderList('grocery-items', groceryData, 'grocery'); }
+    else { todoData = data; renderList('todo-items', todoData, 'todo'); }
+  }
+
+  async function toggleItem(kind, id){
+    const data = (kind === 'grocery') ? groceryData : todoData;
+    const item = data.find(t => t.id === id);
+    if(!item) return;
+    const newDone = !item.done;
+    // actualización optimista en pantalla, luego confirmamos con el servidor
+    item.done = newDone;
+    renderList(kind === 'grocery' ? 'grocery-items' : 'todo-items', data, kind);
+    try{
+      await fetch(`${API}/api/tasks/${id}`, {
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({done:newDone})
+      });
+    }catch(err){
+      console.error('Error al guardar tarea', err);
+    }
+  }
+
+  function showAddInput(containerId, kind){
+    const el = document.getElementById(containerId);
+    const inputRow = document.createElement('div');
+    inputRow.style.padding = '6px 0';
+    inputRow.innerHTML = `<input class="add-item-input" placeholder="Escribe y pulsa Enter" autofocus>`;
+    el.appendChild(inputRow);
+    const input = inputRow.querySelector('input');
+    input.focus();
+    input.addEventListener('keydown', async (e) => {
+      if(e.key === 'Enter' && input.value.trim()){
+        const text = input.value.trim();
+        try{
+          const res = await fetch(`${API}/api/tasks`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({text, list:kind})
+          });
+          const created = await res.json();
+          if(kind === 'grocery'){ groceryData.push(created); renderList(containerId, groceryData, kind); }
+          else { todoData.push(created); renderList(containerId, todoData, kind); }
+        }catch(err){
+          console.error('Error al añadir item', err);
+        }
+      }
+    });
+    input.addEventListener('blur', () => { if(inputRow.parentNode) inputRow.remove(); });
+  }
+
+  /* ---- Tareas completadas (archivadas a los 3 días) ---- */
+  async function openCompletedModal(kind){
+    const titleEl = document.getElementById('completed-modal-title');
+    const listEl = document.getElementById('completed-list');
+    titleEl.textContent = kind === 'grocery' ? 'Grocery — Completadas' : 'To-Do — Completadas';
+    listEl.innerHTML = '<div class="modal-empty">Cargando...</div>';
+    document.getElementById('modal-completed').classList.add('active');
+
+    try{
+      const res = await fetch(`${API}/api/tasks/completed?list=${kind}`);
+      const data = await res.json();
+      if(data.length === 0){
+        listEl.innerHTML = '<div class="modal-empty">Todavía no hay nada archivado aquí.</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(t => {
+        const date = t.completed_at ? new Date(t.completed_at).toLocaleDateString('es-ES', {day:'numeric', month:'short'}) : '';
+        return `
+          <div class="list-item" style="cursor:default;">
+            <div class="list-check" style="background:var(--fg-dim); border-color:var(--fg-dim);">✓</div>
+            <div class="list-item-text" style="text-decoration:line-through; color:var(--fg-dim);">${t.text}</div>
+            <div style="margin-left:auto; font-size:11px; color:var(--fg-faint);">${date}</div>
+          </div>
+        `;
+      }).join('');
+    }catch(err){
+      listEl.innerHTML = '<div class="modal-empty">Error al cargar.</div>';
+      console.error('Error al cargar completadas', err);
+    }
+  }
+
+  /* ============ MEALS (conectado a /api/meals) ============ */
+  // Día de la semana REAL de hoy, en el mismo formato que usa Meals (Lun..Dom)
+  const DOW_KEYS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  function todayDowKey(){ return DOW_KEYS[REAL_TODAY.getDay()]; }
+
+  async function loadMeals(){
+    const res = await fetch(`${API}/api/meals`);
+    const grid = await res.json();
+    ['Desayuno','Comida','Cena'].forEach(slot => {
+      Object.keys(grid[slot]).forEach(day => {
+        const entry = grid[slot][day];
+        mealPlan[slot][day] = entry ? entry.dish_name : null;
+        mealRecipeIds[slot][day] = entry ? entry.recipe_id : null;
+      });
+    });
+    renderMealGrid();
+    // refleja la cena de HOY (día real, no fijo) en la tarjeta de Home;
+    // si no hay menú generado todavía, lo dice claramente en vez de dejar
+    // el texto de ejemplo del mockup original.
+    const homeDish = document.getElementById('home-meal-dish');
+    if(homeDish){
+      const todayDish = mealPlan.Cena[todayDowKey()];
+      homeDish.textContent = todayDish || 'Sin menú — genera uno en Meals';
+    }
+  }
+
+  async function generateMenu(){
+    const btn = document.getElementById('generate-btn');
+    btn.textContent = 'Generando...';
+    btn.disabled = true;
+    try{
+      const res = await fetch(`${API}/api/meals/generate`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({days:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'], add_to_grocery:true})
+      });
+      if(!res.ok){
+        let err = {};
+        try{ err = await res.json(); }
+        catch(parseErr){ err = { error: `Error del servidor (HTTP ${res.status})` }; }
+        alert('No se pudo generar: ' + (err.error || 'error desconocido'));
+        return;
+      }
+      const data = await res.json();
+      await loadMeals();
+      await loadTasks('grocery');
+      if(data.added_to_grocery && data.added_to_grocery.length){
+        console.log('Añadidos a la compra:', data.added_to_grocery);
+      }
+    } finally {
+      btn.textContent = '🎲 Generar menú';
+      btn.disabled = false;
+    }
+  }
+
+  function renderMealGrid(){
+    const grid = document.getElementById('meal-grid');
+    const days = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+    const todayKey = todayDowKey();
+    let html = `<div class="mh"></div>` + days.map(d => `<div class="mh${d===todayKey?' today-h':''}">${d}</div>`).join('');
+    ['Desayuno','Comida','Cena'].forEach(slot => {
+      html += `<div class="meal-row-label">${slot}</div>`;
+      days.forEach(d => {
+        const dish = mealPlan[slot][d];
+        const isToday = (d === todayKey);
+        html += `<div class="meal-cell${dish?' filled':''}${isToday?' today-c':''}" onclick="openMealModal('${slot}','${d}')">${dish ? dish : '+ añadir'}</div>`;
+      });
+    });
+    grid.innerHTML = html;
+  }
+  function openMealModal(slot, dayKey){
+    currentMealSlot = {slot, dayKey};
+    document.getElementById('meal-modal-title').textContent = slot + ' — ' + dayKey;
+    const dish = mealPlan[slot][dayKey];
+    document.getElementById('meal-modal-sub').textContent = dish ? 'Receta actual asignada' : 'Sin receta asignada todavía';
+    document.getElementById('meal-current-dish').value = dish || '(vacío)';
+    const select = document.getElementById('meal-recipe-select');
+    const options = recipesData.filter(r => r.cat === slot);
+    select.innerHTML = '<option value="">— Elegir receta —</option>' + options.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
+    document.getElementById('modal-meal').classList.add('active');
+  }
+  async function submitMealChange(){
+    const select = document.getElementById('meal-recipe-select');
+    const recipeName = select.value;
+    if(!recipeName || !currentMealSlot) { closeModal('modal-meal'); return; }
+    const { slot, dayKey } = currentMealSlot;
+    const recipe = recipesData.find(r => r.name === recipeName && r.cat === slot);
+
+    // actualización optimista
+    mealPlan[slot][dayKey] = recipeName;
+    mealRecipeIds[slot][dayKey] = recipe ? recipe.id : null;
+    renderMealGrid();
+    if(slot === 'Cena' && dayKey === todayDowKey()){
+      document.getElementById('home-meal-dish').textContent = recipeName;
+    }
+    closeModal('modal-meal');
+
+    try{
+      await fetch(`${API}/api/meals/${dayKey}/${slot}`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({dish_name: recipeName, recipe_id: recipe ? recipe.id : null})
+      });
+    }catch(err){
+      console.error('Error al guardar la comida', err);
+    }
+  }
+
+  /* ============ RECIPES (conectado a /api/recipes) ============ */
+  async function loadRecipes(){
+    const res = await fetch(`${API}/api/recipes`);
+    recipesData = (await res.json()).map(r => ({id:r.id, cat:r.category, name:r.name, ing:r.ingredients}));
+    renderRecipes();
+  }
+  function renderRecipes(){
+    const grid = document.getElementById('recipe-grid');
+    grid.innerHTML = recipesData.map(r => `
+      <div class="recipe-card">
+        <span class="recipe-tag">${r.cat}</span>
+        <div class="recipe-name">${r.name}</div>
+        <div class="recipe-ing">${r.ing}</div>
+      </div>
+    `).join('');
+  }
+
+  /* ============ PHOTOS ============ */
+  let photoIndex = 0;
+  let photoTimer = null;
+
+  /* ============ FOTOS (conectado a /api/photos) ============ */
+  async function loadPhotos(){
+    try{
+      const res = await fetch(`${API}/api/photos`);
+      const data = await res.json();
+      const statusEl = document.getElementById('settings-photos-status');
+      if(statusEl){
+        statusEl.textContent = data.available && data.count > 0
+          ? `${data.count} fotos ›`
+          : 'Sin fotos todavía ›';
+      }
+      if(data.available && data.photos && data.photos.length > 0){
+        // data.photos ahora son objetos {filename, width, height, orientation},
+        // no solo strings — el backend calcula la orientación con Pillow.
+        photos = data.photos.map(p => ({
+          url: `/photos/${encodeURIComponent(p.filename)}`,
+          caption: '',
+          demo: false,
+          // horizontal (o desconocida) -> cover; vertical -> contain, así
+          // nunca se recortan caras en fotos de móvil en retrato.
+          bgSize: (p.orientation === 'portrait') ? 'contain' : 'cover',
+        }));
+        photoIndex = 0;
+        renderHomePhotoMini();
+        if(document.getElementById('device').classList.contains('photo-mode')){
+          renderPhotoFull();
+        }
+      }
+      // si no hay fotos reales, se quedan los 3 gradientes de ejemplo (demo:true)
+    }catch(err){
+      console.error('Error al cargar fotos', err);
+    }
+  }
+
+  function _photoBg(p){
+    if(!p.url) return '';
+    const size = p.bgSize || 'cover';
+    return `background-image:url('${p.url}'); background-size:${size}; background-position:center; background-repeat:no-repeat;`;
+  }
+
+  function renderHomePhotoMini(){
+    const wrap = document.getElementById('home-photo-stack');
+    wrap.innerHTML = photos.map((p,i) => `<div class="photo-mini ${p.cls || ''}" style="opacity:${i===0?1:0}; ${_photoBg(p)}"></div>`).join('');
+  }
+  function renderPhotoFull(){
+    const full = document.getElementById('photo-full-el');
+    const p = photos[photoIndex];
+    full.className = 'photo-full ' + (p.cls || '');
+    full.style.cssText = _photoBg(p);
+    document.getElementById('photo-full-caption').textContent = p.caption || '';
+    document.getElementById('photo-dots').innerHTML = photos.map((_,i) => `<div class="pdot${i===photoIndex?' active':''}"></div>`).join('');
+  }
+  function rotatePhotos(){
+    photoIndex = (photoIndex + 1) % photos.length;
+    // home mini
+    document.querySelectorAll('#home-photo-stack .photo-mini').forEach((el,i) => {
+      el.style.opacity = (i === photoIndex) ? 1 : 0;
+    });
+    // full view (si está activa)
+    if(document.getElementById('device').classList.contains('photo-mode')){
+      renderPhotoFull();
+    }
+  }
+  function enterPhotoMode(){
+    document.getElementById('device').classList.add('photo-mode');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-photos').classList.add('active');
+    renderPhotoFull();
+  }
+  function exitPhotoMode(){
+    document.getElementById('device').classList.remove('photo-mode');
+    navTo('home');
+  }
+
+  /* ============ ESTILOS DE FOTOS DE MUESTRA (inline, sin red externa) ============ */
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    .photo-beach{ background:linear-gradient(180deg,#8ec9e8 0%,#bfe3ef 40%,#e8d9a8 42%,#c2ab68 100%); }
+    .photo-beach::before{ content:""; position:absolute; width:60px; height:60px; border-radius:50%; background:radial-gradient(circle,#fff8d8,#ffe89a 70%); top:12%; left:15%; box-shadow:0 0 40px 12px rgba(255,232,154,0.45); }
+    .photo-birthday{ background:linear-gradient(160deg,#3a2145 0%,#5c2d5e 45%,#8a3b5e 75%,#c1583f 100%); }
+    .photo-mountain{ background:linear-gradient(180deg,#7ea8c9 0%,#a9c7d9 45%,#4a5a52 46%,#2f3b34 100%); }
+  `;
+  document.head.appendChild(styleEl);
+
+  /* ============ WIFI (conectado a /api/wifi) ============ */
+  let wifiNetworksCache = [];
+
+  async function refreshWifiStatusRow(){
+    try{
+      const res = await fetch(`${API}/api/wifi/status`);
+      const data = await res.json();
+      const el = document.getElementById('settings-wifi-status');
+      if(!el) return;
+      if(!data.available){ el.textContent = 'No disponible ›'; return; }
+      el.textContent = data.connected ? `${data.ssid} ›` : 'Desconectado ›';
+    }catch(err){ /* silencioso: no bloquea el resto de Settings */ }
+  }
+
+  function openWifiModal(){
+    document.getElementById('wifi-current-status').textContent = 'Comprobando conexión actual...';
+    document.getElementById('wifi-network-list').innerHTML = '';
+    document.getElementById('modal-wifi').classList.add('active');
+    refreshWifiCurrentStatus();
+    scanWifi();
+  }
+
+  async function refreshWifiCurrentStatus(){
+    try{
+      const res = await fetch(`${API}/api/wifi/status`);
+      const data = await res.json();
+      const el = document.getElementById('wifi-current-status');
+      if(!data.available){ el.textContent = 'Wifi no disponible en este dispositivo.'; return; }
+      el.textContent = data.connected ? `Conectado a "${data.ssid}"` : 'Sin conexión wifi activa';
+    }catch(err){
+      document.getElementById('wifi-current-status').textContent = 'No se pudo comprobar el estado.';
+    }
+  }
+
+  async function scanWifi(){
+    const list = document.getElementById('wifi-network-list');
+    list.innerHTML = '<div class="modal-empty">Buscando redes...</div>';
+    try{
+      const res = await fetch(`${API}/api/wifi/scan`);
+      const data = await res.json();
+      if(!data.available){
+        list.innerHTML = `<div class="modal-empty">No se pudo escanear: ${data.error || 'wifi no disponible'}</div>`;
+        return;
+      }
+      wifiNetworksCache = data.networks || [];
+      if(wifiNetworksCache.length === 0){
+        list.innerHTML = '<div class="modal-empty">No se encontraron redes.</div>';
+        return;
+      }
+      list.innerHTML = wifiNetworksCache.map((n, i) => `
+        <div class="list-item" onclick="openWifiConnectModal(${i})">
+          <div class="list-check">${n.secured ? '🔒' : ''}</div>
+          <div class="list-item-text">${n.ssid}</div>
+          <div style="margin-left:auto; font-size:11px; color:var(--fg-dim);">${n.signal}%</div>
+        </div>
+      `).join('');
+    }catch(err){
+      list.innerHTML = '<div class="modal-empty">Error al escanear redes.</div>';
+    }
+  }
+
+  function openWifiConnectModal(idx){
+    const net = wifiNetworksCache[idx];
+    if(!net) return;
+    document.getElementById('wifi-connect-ssid').textContent = net.ssid;
+    document.getElementById('wifi-password').value = '';
+    document.getElementById('wifi-connect-status').textContent = '';
+    document.getElementById('modal-wifi-connect').dataset.ssid = net.ssid;
+    document.getElementById('modal-wifi-connect').classList.add('active');
+  }
+
+  async function submitWifiConnect(){
+    const modal = document.getElementById('modal-wifi-connect');
+    const ssid = modal.dataset.ssid;
+    const password = document.getElementById('wifi-password').value;
+    const statusEl = document.getElementById('wifi-connect-status');
+    statusEl.textContent = 'Conectando...';
+    try{
+      const res = await fetch(`${API}/api/wifi/connect`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ssid, password})
+      });
+      const data = await res.json();
+      if(data.success){
+        statusEl.textContent = '✓ Conectado.';
+        setTimeout(() => {
+          closeModal('modal-wifi-connect');
+          closeModal('modal-wifi');
+          refreshWifiStatusRow();
+        }, 1000);
+      } else {
+        statusEl.textContent = '✕ ' + (data.error || 'No se pudo conectar.');
+      }
+    }catch(err){
+      statusEl.textContent = '✕ Error de conexión con el servidor.';
+    }
+  }
+
+  /* ============ SALIR DEL KIOSKO / ACTUALIZAR ============ */
+  function confirmExitKiosk(){
+    if(confirm('¿Salir de la app y mostrar el escritorio? Podrás volver a entrar reiniciando el Pi o con el atajo de teclado.')){
+      exitKiosk();
+    }
+  }
+  async function exitKiosk(){
+    try{
+      await fetch(`${API}/api/system/exit-kiosk`, {method:'POST'});
+    }catch(err){ /* aunque falle la petición, no hay nada más que hacer desde aquí */ }
+  }
+
+  function confirmUpdate(){
+    if(confirm('Esto descarga los últimos cambios del repositorio y REINICIA el Pi entero. ¿Continuar?')){
+      runUpdate();
+    }
+  }
+  async function runUpdate(){
+    try{
+      const res = await fetch(`${API}/api/system/update`, {method:'POST'});
+      const data = await res.json();
+      if(data.success){
+        alert('Actualizado correctamente. El sistema se reiniciará en unos segundos...');
+      } else {
+        alert('No se pudo actualizar: ' + (data.error || 'error desconocido'));
+      }
+    }catch(err){
+      alert('No se pudo conectar con el servidor para actualizar.');
+    }
+  }
+
+  async function loadVersion(){
+    try{
+      const res = await fetch(`${API}/api/system/version`);
+      const data = await res.json();
+      const el = document.getElementById('settings-version');
+      if(!el) return;
+      el.textContent = data.available ? data.hash : 'no disponible';
+    }catch(err){ /* silencioso */ }
+  }
+
+  /* ============ CLIMA (conectado a /api/weather) ============ */
+  async function loadWeather(){
+    try{
+      const res = await fetch(`${API}/api/weather`);
+      const data = await res.json();
+
+      const miniGlobal = document.getElementById('weather-mini-global');
+      const nowHome = document.getElementById('weather-now-home');
+      const feelsHome = document.getElementById('weather-feelslike-home');
+      const forecastHome = document.getElementById('weather-forecast-home');
+      const locationHome = document.getElementById('weather-location-home');
+      const moonHome = document.getElementById('weather-moon-home');
+      const airHome = document.getElementById('weather-air-home');
+      const locationRow = document.getElementById('settings-weather-location');
+
+      if(!data.available){
+        if(miniGlobal) miniGlobal.innerHTML = '<span class="icon">—</span><div><div class="temp">—</div><div class="range">Sin datos</div></div>';
+        if(nowHome) nowHome.innerHTML = '<span class="icon">—</span><span class="temp">—</span>';
+        if(feelsHome) feelsHome.textContent = '';
+        if(forecastHome) forecastHome.innerHTML = '';
+        if(locationHome) locationHome.textContent = 'Sin ubicación';
+        if(moonHome) moonHome.textContent = '';
+        if(airHome) airHome.textContent = '';
+        if(locationRow) locationRow.textContent = 'No configurado ›';
+        return;
+      }
+
+      if(miniGlobal){
+        miniGlobal.innerHTML = `<span class="icon">${data.icon}</span><div><div class="temp">${data.temp}°</div><div class="range">↑${data.temp_max}° ↓${data.temp_min}°</div></div>`;
+      }
+      if(nowHome){
+        nowHome.innerHTML = `<span class="icon">${data.icon}</span><span class="temp">${data.temp}°</span>`;
+      }
+      if(feelsHome){
+        feelsHome.textContent = `Sensación ${data.feels_like}° · ${data.description}`;
+      }
+      if(locationHome){
+        locationHome.textContent = data.location || 'Ubicación configurada';
+      }
+      if(moonHome && data.moon_phase){
+        moonHome.textContent = `${data.moon_phase.emoji} ${data.moon_phase.name}`;
+      }
+      if(airHome){
+        airHome.textContent = data.air_quality
+          ? `Aire: ${data.air_quality.label}`
+          : 'Aire: sin datos';
+      }
+      if(forecastHome && data.forecast){
+        const dayLabel = (dateStr) => {
+          const d = new Date(dateStr);
+          return d.toLocaleDateString('es-ES', {weekday:'short'}).replace('.','');
+        };
+        forecastHome.innerHTML = data.forecast.map(f => `<span>${dayLabel(f.date)} ${f.icon} ${f.temp}°</span>`).join('');
+      }
+      if(locationRow){
+        locationRow.textContent = `${data.location || 'Ubicación configurada'} ›`;
+      }
+    }catch(err){
+      console.error('Error al cargar el clima', err);
+    }
+  }
+
+  updateMonthLabel();
+  updateWeekRangeLabel();
+  tickClocks();
+  setInterval(tickClocks, 1000);
+  loadTimezones();
+
+  renderHomePhotoMini(); // arranca con los gradientes de ejemplo; loadPhotos() los sustituye si hay fotos reales
+  photoTimer = setInterval(rotatePhotos, 10000);
+  loadPhotos();
+
+  // Estos ya vienen del backend real:
+  loadTasks('grocery');
+  loadTasks('todo');
+  loadRecipes().then(loadMeals); // meals necesita que recipesData ya esté cargado
+
+  // Calendario real (Google Calendar): Home siempre la semana real,
+  // Calendar el mes que se esté navegando — y ambos se refrescan solos
+  // cada 2 minutos, para que lo que añadas/quites desde el móvil aparezca
+  // sin tener que tocar nada en la pantalla de la pared.
+  loadHomeWeekEvents();
+  loadCalendarMonthEvents();
+  setInterval(loadHomeWeekEvents, 2 * 60 * 1000);
+  setInterval(loadCalendarMonthEvents, 2 * 60 * 1000);
+
+  checkGoogleStatus().then(() => {
+    const el = document.getElementById('settings-gcal-status');
+    if(el){
+      el.textContent = googleConfigured
+        ? 'Conectado ›'
+        : 'No conectado — ver README ›';
+    }
+  });
+
+  refreshWifiStatusRow();
+  loadVersion();
+  loadWeather();
+  setInterval(loadWeather, 15 * 60 * 1000); // refrescar cada 15 min, igual que la caché del backend
+</script>
+
+
+</body>
+</html>

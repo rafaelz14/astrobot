@@ -1,0 +1,7 @@
+#!/bin/bash
+# ~/.config/labwc/autostart
+# Instalado por setup/install.sh — labwc ejecuta este archivo como script
+# de shell tras leer su configuración, tanto si arrancas desde terminal
+# como desde el gestor de sesión gráfica.
+
+__PROJECT_DIR__/setup/kiosk-autostart.sh &

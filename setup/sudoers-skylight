@@ -1,0 +1,14 @@
+# /etc/sudoers.d/skylight
+#
+# Da permiso a tu usuario para ejecutar SOLO estos comandos exactos sin
+# contraseña (install.sh sustituye __USER__ por el usuario real). Nada más
+# queda abierto — ni siquiera "sudo nmcli algo-mas" fuera de estas rutas.
+#
+# INSTALACIÓN: copia este archivo a /etc/sudoers.d/skylight y ejecuta
+# `sudo visudo -c` para verificar que la sintaxis es correcta antes de
+# confiar en él (si hay un error de sintaxis en sudoers, puede bloquear
+# el sudo del sistema entero).
+
+__USER__ ALL=(root) NOPASSWD: /usr/bin/nmcli
+__USER__ ALL=(root) NOPASSWD: /sbin/reboot
+__USER__ ALL=(root) NOPASSWD: /usr/sbin/reboot
