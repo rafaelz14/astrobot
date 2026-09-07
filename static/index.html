@@ -194,6 +194,36 @@
   .owner-pill.selected{ border-color:var(--fg); color:var(--fg); background:rgba(0,0,0,0.06); }
 
   .note{ margin:8px auto 0; padding:0 40px; font-family:"Roboto Mono", monospace; font-size:13px; color:var(--fg-faint); text-align:center; }
+
+  /* ===================== VIRTUAL KEYBOARD ===================== */
+  .vkbd{
+    display:none; position:absolute; left:0; right:0; bottom:0; z-index:100;
+    background:#d8dce0; padding:10px 12px 14px; border-top:1px solid var(--line);
+    box-shadow:0 -8px 28px rgba(0,0,0,0.12); user-select:none; touch-action:manipulation;
+  }
+  .vkbd.open{ display:block; }
+  .vkbd-rows{ display:flex; flex-direction:column; gap:8px; max-width:1100px; margin:0 auto; }
+  .vkbd-row{ display:flex; gap:6px; justify-content:center; }
+  .vkbd-key{
+    flex:1; min-width:0; max-width:72px; height:52px; border-radius:10px;
+    background:#fff; border:1px solid #c5c8ce; color:var(--fg);
+    font-size:22px; font-weight:400; font-family:inherit;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 0 #b0b4ba;
+  }
+  .vkbd-key:active, .vkbd-key.active{ background:#cfd3d9; box-shadow:none; transform:translateY(1px); }
+  .vkbd-key.wide{ max-width:110px; flex:1.4; font-size:16px; }
+  .vkbd-key.space{ max-width:none; flex:5; }
+  .vkbd-key.enter{ max-width:120px; flex:1.6; background:var(--accent-cal); color:#fff; border-color:#244a9e; box-shadow:0 2px 0 #1c3a7a; font-size:17px; }
+  .vkbd-key.enter:active{ background:#244a9e; }
+  .vkbd-key.danger{ font-size:20px; }
+
+  /* Cuando el teclado está abierto, sube los modales para que el campo no quede tapado */
+  .device.vk-open .modal-backdrop.active{
+    align-items:flex-start; padding-top:16px; padding-bottom:300px; overflow-y:auto;
+  }
+  .device.vk-open .modal-card{ max-height:none; }
+  .device.vk-open .view.active{ padding-bottom:300px; }
 </style>
 </head>
 <body>
@@ -373,7 +403,7 @@
       <span class="modal-close" onclick="closeModal('modal-wifi-connect')">✕</span>
       <div class="modal-title" id="wifi-connect-ssid">—</div>
       <div class="modal-sub">Introduce la contraseña de la red</div>
-      <div class="form-row"><label>Contraseña</label><input type="password" id="wifi-password" placeholder="••••••••"></div>
+      <div class="form-row"><label>Contraseña</label><input type="password" id="wifi-password" placeholder="••••••••" inputmode="none" autocomplete="off"></div>
       <div class="modal-submit" onclick="submitWifiConnect()">Conectar</div>
       <div class="note-inline" id="wifi-connect-status" style="margin-top:10px;"></div>
     </div>
@@ -386,8 +416,8 @@
       <div class="modal-title">World Clock</div>
       <div class="modal-sub">Solo se muestran las primeras 5 en Home (ordenadas por posición)</div>
       <div id="timezone-list" style="display:flex; flex-direction:column; gap:2px; margin-bottom:16px;"></div>
-      <div class="form-row"><label>Etiqueta</label><input type="text" id="tz-label" placeholder="Ej. Tokio"></div>
-      <div class="form-row"><label>Zona IANA</label><input type="text" id="tz-zone" placeholder="Ej. Asia/Tokyo"></div>
+      <div class="form-row"><label>Etiqueta</label><input type="text" id="tz-label" placeholder="Ej. Tokio" inputmode="none" autocomplete="off"></div>
+      <div class="form-row"><label>Zona IANA</label><input type="text" id="tz-zone" placeholder="Ej. Asia/Tokyo" inputmode="none" autocomplete="off"></div>
       <div class="modal-submit" onclick="submitAddTimezone()">Añadir zona</div>
       <div class="note-inline" id="tz-add-status" style="margin-top:10px;"></div>
     </div>
@@ -421,7 +451,7 @@
       <div class="modal-title">Nuevo evento</div>
       <div class="modal-sub">Elige cualquier fecha, no solo del mes actual</div>
       <div class="form-row"><label>Fecha</label><input type="date" id="f-date"></div>
-      <div class="form-row"><label>Título</label><input type="text" id="f-title" placeholder="Ej. Dentista"></div>
+      <div class="form-row"><label>Título</label><input type="text" id="f-title" placeholder="Ej. Dentista" inputmode="none" autocomplete="off"></div>
       <div class="form-row"><label>Hora</label><input type="time" id="f-time" value="18:00"></div>
       <div class="form-row">
         <label>Asignar a</label>
@@ -451,6 +481,11 @@
       </div>
       <div class="modal-submit" onclick="submitMealChange()">Actualizar</div>
     </div>
+  </div>
+
+  <!-- Teclado virtual táctil (Pi kiosk no tiene OSK del sistema) -->
+  <div id="vkbd" class="vkbd" aria-hidden="true">
+    <div class="vkbd-rows" id="vkbd-rows"></div>
   </div>
 
 </div>
@@ -793,6 +828,7 @@
 
   /* ============ NAV ============ */
   function go(el, view){
+    hideVk();
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     el.classList.add('active');
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -802,7 +838,10 @@
     const item = document.querySelector('.nav-item[data-view="' + view + '"]');
     if(item){ go(item, view); }
   }
-  function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+  function closeModal(id){
+    document.getElementById(id).classList.remove('active');
+    hideVk();
+  }
 
   /* ============ RENDER: WEEK GRID (Home) — siempre la semana real actual ============ */
   function renderWeekGrid(){
@@ -1001,7 +1040,7 @@
     const el = document.getElementById(containerId);
     const inputRow = document.createElement('div');
     inputRow.style.padding = '6px 0';
-    inputRow.innerHTML = `<input class="add-item-input" placeholder="Escribe y pulsa Enter" autofocus>`;
+    inputRow.innerHTML = `<input class="add-item-input" placeholder="Escribe y pulsa Intro / OK" inputmode="none" autocomplete="off">`;
     el.appendChild(inputRow);
     const input = inputRow.querySelector('input');
     input.focus();
@@ -1017,13 +1056,188 @@
           const created = await res.json();
           if(kind === 'grocery'){ groceryData.push(created); renderList(containerId, groceryData, kind); }
           else { todoData.push(created); renderList(containerId, todoData, kind); }
+          hideVk();
         }catch(err){
           console.error('Error al añadir item', err);
         }
       }
     });
-    input.addEventListener('blur', () => { if(inputRow.parentNode) inputRow.remove(); });
+    // No borrar al instante en blur: el teclado virtual usa mousedown y
+    // a veces hay un blur breve. Solo quitar si el foco ya no es el input
+    // ni el teclado.
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        if(document.activeElement === input) return;
+        if(document.activeElement && document.activeElement.closest('#vkbd')) return;
+        if(vkTarget === input) return;
+        if(inputRow.parentNode) inputRow.remove();
+      }, 120);
+    });
   }
+
+  /* ============ TECLADO VIRTUAL ============ */
+  let vkTarget = null;
+  let vkShift = false;
+  let vkSymbols = false;
+
+  const VK_LETTERS = [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l','ñ'],
+    ['shift','z','x','c','v','b','n','m','back'],
+    ['123',',','space','.','enter'],
+  ];
+  const VK_SYMBOLS = [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['@','#','$','%','&','*','-','+','_','='],
+    ['abc','!','?',"'",'"','(',')','/','\\','back'],
+    ['abc',',','space','.','enter'],
+  ];
+
+  function isVkTextInput(el){
+    if(!el || el.tagName !== 'INPUT') return false;
+    if(el.readOnly || el.disabled) return false;
+    const t = (el.type || 'text').toLowerCase();
+    return t === 'text' || t === 'password' || t === 'search' || t === 'email' || t === 'url';
+  }
+
+  function showVk(input){
+    vkTarget = input;
+    try{ input.setAttribute('inputmode', 'none'); }catch(_){}
+    const kbd = document.getElementById('vkbd');
+    const device = document.getElementById('device');
+    if(!kbd || !device) return;
+    renderVk();
+    kbd.classList.add('open');
+    kbd.setAttribute('aria-hidden', 'false');
+    device.classList.add('vk-open');
+    setTimeout(() => {
+      try{ input.scrollIntoView({block:'center', behavior:'smooth'}); }catch(_){}
+    }, 50);
+  }
+
+  function hideVk(){
+    vkTarget = null;
+    vkShift = false;
+    const kbd = document.getElementById('vkbd');
+    const device = document.getElementById('device');
+    if(kbd){ kbd.classList.remove('open'); kbd.setAttribute('aria-hidden', 'true'); }
+    if(device) device.classList.remove('vk-open');
+  }
+
+  function renderVk(){
+    const rowsEl = document.getElementById('vkbd-rows');
+    if(!rowsEl) return;
+    const layout = vkSymbols ? VK_SYMBOLS : VK_LETTERS;
+    rowsEl.innerHTML = layout.map(row => {
+      const keys = row.map(key => {
+        let label = key;
+        let cls = 'vkbd-key';
+        if(key === 'shift'){ label = vkShift ? '⇧' : '⇧'; cls += ' wide' + (vkShift ? ' active' : ''); }
+        else if(key === 'back'){ label = '⌫'; cls += ' wide danger'; }
+        else if(key === 'space'){ label = 'espacio'; cls += ' space'; }
+        else if(key === 'enter'){ label = 'OK'; cls += ' enter'; }
+        else if(key === '123' || key === 'abc'){ label = key; cls += ' wide'; }
+        else if(!vkSymbols && vkShift && key.length === 1){ label = key.toUpperCase(); }
+        return `<button type="button" class="${cls}" data-vk="${key}">${label}</button>`;
+      }).join('');
+      return `<div class="vkbd-row">${keys}</div>`;
+    }).join('');
+  }
+
+  function vkInsert(text){
+    const el = vkTarget;
+    if(!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + text + el.value.slice(end);
+    const pos = start + text.length;
+    try{ el.setSelectionRange(pos, pos); }catch(_){}
+    el.dispatchEvent(new Event('input', {bubbles:true}));
+  }
+
+  function vkBackspace(){
+    const el = vkTarget;
+    if(!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    if(start !== end){
+      el.value = el.value.slice(0, start) + el.value.slice(end);
+      try{ el.setSelectionRange(start, start); }catch(_){}
+    } else if(start > 0){
+      el.value = el.value.slice(0, start - 1) + el.value.slice(end);
+      try{ el.setSelectionRange(start - 1, start - 1); }catch(_){}
+    }
+    el.dispatchEvent(new Event('input', {bubbles:true}));
+  }
+
+  function vkEnter(){
+    const el = vkTarget;
+    if(!el) return;
+    el.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true, cancelable:true}));
+    // Si el input de lista se eliminó tras Enter, cerrar teclado
+    setTimeout(() => {
+      if(!vkTarget || !document.body.contains(vkTarget)) hideVk();
+      else hideVk();
+    }, 80);
+  }
+
+  function onVkKey(key){
+    if(key === 'shift'){
+      vkShift = !vkShift;
+      renderVk();
+      return;
+    }
+    if(key === '123'){
+      vkSymbols = true;
+      vkShift = false;
+      renderVk();
+      return;
+    }
+    if(key === 'abc'){
+      vkSymbols = false;
+      vkShift = false;
+      renderVk();
+      return;
+    }
+    if(key === 'back'){ vkBackspace(); return; }
+    if(key === 'space'){ vkInsert(' '); return; }
+    if(key === 'enter'){ vkEnter(); return; }
+    let ch = key;
+    if(!vkSymbols && vkShift) ch = key.toUpperCase();
+    vkInsert(ch);
+    if(vkShift && !vkSymbols){
+      vkShift = false;
+      renderVk();
+    }
+  }
+
+  // Init teclado: mousedown/touchstart con preventDefault para no robar el foco del input
+  (function initVk(){
+    const kbd = document.getElementById('vkbd');
+    if(!kbd) return;
+    renderVk();
+
+    kbd.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('[data-vk]');
+      if(!btn) return;
+      e.preventDefault();
+      onVkKey(btn.getAttribute('data-vk'));
+    });
+
+    document.addEventListener('focusin', (e) => {
+      if(isVkTextInput(e.target)) showVk(e.target);
+    });
+    document.addEventListener('focusout', () => {
+      setTimeout(() => {
+        if(!vkTarget) return;
+        if(document.activeElement === vkTarget) return;
+        if(document.activeElement && document.activeElement.closest('#vkbd')) return;
+        // Si el foco pasó a otro input de texto, focusin ya habrá cambiado el target
+        if(isVkTextInput(document.activeElement)) return;
+        hideVk();
+      }, 100);
+    });
+  })();
 
   /* ---- Tareas completadas (archivadas a los 3 días) ---- */
   async function openCompletedModal(kind){
@@ -1249,6 +1463,7 @@
     }
   }
   function enterPhotoMode(){
+    hideVk();
     document.getElementById('device').classList.add('photo-mode');
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-photos').classList.add('active');
