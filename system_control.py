@@ -121,9 +121,49 @@ def update_and_restart(repo_dir):
         timeout=120,
     )
 
-    # Reinicio programado en background, para que esta función pueda
-    # devolver la respuesta antes de que el sistema se reinicie de verdad.
-    subprocess.Popen(["sudo", "bash", "-c", "sleep 3 && reboot"])
+    # Comprobar que sudoers permite reboot sin contraseña ANTES de mentir
+    # al frontend con "reiniciando...". Antes se usaba
+    # `sudo bash -c "sleep 3 && reboot"`, que sudoers NO permite.
+    ok_sudo, sudo_list = _run(["sudo", "-n", "-l"])
+    can_reboot = ok_sudo and (
+        "/sbin/reboot" in sudo_list or "/usr/sbin/reboot" in sudo_list
+    )
+    if not can_reboot:
+        return {
+            "success": False,
+            "git_output": out,
+            "pip_ok": pip_ok,
+            "error": (
+                "Código actualizado (git pull OK), pero el reinicio automático "
+                "no está permitido (falta sudoers para /sbin/reboot). "
+                "Reinicia a mano: sudo reboot"
+            ),
+        }
+
+    # sleep en bash de usuario; solo reboot usa sudo -n con la ruta de sudoers.
+    # start_new_session: el hijo no muere si el worker de Flask se recicla.
+    reboot_cmd = (
+        "sleep 3 && "
+        "(sudo -n /sbin/reboot || sudo -n /usr/sbin/reboot)"
+    )
+    try:
+        subprocess.Popen(
+            ["/bin/bash", "-c", reboot_cmd],
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "git_output": out,
+            "pip_ok": pip_ok,
+            "error": (
+                f"Código actualizado (git pull OK), pero no se pudo programar "
+                f"el reinicio: {e}. Reinicia a mano: sudo reboot"
+            ),
+        }
 
     return {
         "success": True,
