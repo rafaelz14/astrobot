@@ -21,16 +21,16 @@
   .device{
     width:100vw; height:100vh; position:relative;
     background:var(--bg); overflow:hidden;
-    display:grid; grid-template-columns:190px 1fr;
+    display:grid; grid-template-columns:230px 1fr;
   }
   .device.photo-mode{ grid-template-columns:1fr; }
   .device.photo-mode .sidebar{ display:none; }
 
   /* ===================== SIDEBAR ===================== */
   .sidebar{ background:var(--sidebar); border-right:1px solid var(--line); padding:28px 0 18px; display:flex; flex-direction:column; }
-  .sidebar-logo{ font-size:22px; font-weight:500; padding:0 18px 28px; letter-spacing:0.2px; line-height:1.15; }
-  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:17px 8px; font-size:15px; color:var(--fg-dim); text-align:center; border-left:2px solid transparent; }
-  .nav-item .nav-icon{ font-size:25px; }
+  .sidebar-logo{ font-size:26px; font-weight:500; padding:0 16px 32px; letter-spacing:0.2px; line-height:1.15; }
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:18px 10px; font-size:18px; font-weight:400; color:var(--fg-dim); text-align:center; border-left:3px solid transparent; }
+  .nav-item .nav-icon{ font-size:36px; line-height:1; }
   .nav-item.active{ color:var(--fg); background:rgba(0,0,0,0.05); border-left-color:var(--fg); }
   .nav-item:active{ background:rgba(0,0,0,0.07); }
 
@@ -206,9 +206,9 @@
     <div class="nav-item active" data-view="home" onclick="go(this,'home')"><span class="nav-icon">⌂</span>Home</div>
     <div class="nav-item" data-view="calendar" onclick="go(this,'calendar')"><span class="nav-icon">▦</span>Calendar</div>
     <div class="nav-item" data-view="lists" onclick="go(this,'lists')"><span class="nav-icon">☰</span>Lists</div>
-    <div class="nav-item" data-view="meals" onclick="go(this,'meals')"><span class="nav-icon">◉</span>Meals</div>
-    <div class="nav-item" data-view="recipes" onclick="go(this,'recipes')"><span class="nav-icon">▤</span>Recipes</div>
-    <div class="nav-item" data-view="photos" onclick="enterPhotoMode()"><span class="nav-icon">▢</span>Photos</div>
+    <div class="nav-item" data-view="meals" onclick="go(this,'meals')"><span class="nav-icon">🍴</span>Meals</div>
+    <div class="nav-item" data-view="recipes" onclick="go(this,'recipes')"><span class="nav-icon">🍲</span>Recipes</div>
+    <div class="nav-item" data-view="photos" onclick="enterPhotoMode()"><span class="nav-icon">📷</span>Photos</div>
     <div style="flex:1;"></div>
     <div class="nav-item" data-view="settings" onclick="go(this,'settings')"><span class="nav-icon">⚙</span>Settings</div>
   </div>
