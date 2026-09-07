@@ -534,6 +534,24 @@ def index():
 
 # ==================== SEED (datos de ejemplo al primer arranque) ====================
 
+# Textos exactos del antiguo seed de listas — se borran una vez al arrancar
+# para limpiar dummies en DBs ya existentes (p. ej. el Pi).
+_DUMMY_TASK_TEXTS = (
+    "Leche",
+    "Salmón",
+    "Pan",
+    "Reservar mesa cena de Ana",
+    "Comprar material para el cole",
+    "Pagar recibo de la comunidad",
+)
+
+
+def purge_dummy_tasks():
+    deleted = Task.query.filter(Task.text.in_(_DUMMY_TASK_TEXTS)).delete(synchronize_session=False)
+    if deleted:
+        db.session.commit()
+
+
 def seed_if_empty():
     if Recipe.query.count() == 0:
         # Tus 36 recetas originales de menu-generator.py, mapeadas a nuestro esquema:
@@ -583,18 +601,7 @@ def seed_if_empty():
             db.session.add(Recipe(name=name, category=cat, ingredients=ing, has_carb=has_carb))
         db.session.commit()
 
-    if Task.query.count() == 0:
-        seed_tasks = [
-            ("grocery", "Leche", False),
-            ("grocery", "Salmón", False),
-            ("grocery", "Pan", True),
-            ("todo", "Reservar mesa cena de Ana", False),
-            ("todo", "Comprar material para el cole", False),
-            ("todo", "Pagar recibo de la comunidad", True),
-        ]
-        for list_type, text, done in seed_tasks:
-            db.session.add(Task(list_type=list_type, text=text, done=done))
-        db.session.commit()
+    # Tasks (grocery / to-do) intentionally not seeded — lists start empty.
 
     # El menú semanal (MealSlot) ya NO se siembra con datos fijos:
     # se genera desde la app tocando "Generar menú" (POST /api/meals/generate)
@@ -614,6 +621,7 @@ def seed_if_empty():
 
 with app.app_context():
     db.create_all()
+    purge_dummy_tasks()
     seed_if_empty()
 
 

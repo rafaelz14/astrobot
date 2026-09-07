@@ -963,7 +963,7 @@
     if(!el) return;
     const pending = todoData.filter(t => !t.done);
     if(pending.length === 0){
-      el.innerHTML = '<div style="color:var(--fg-dim); font-size:16px; padding:4px 0;">No hay tareas pendientes</div>';
+      el.innerHTML = '<div style="color:var(--fg-dim); font-size:16px; padding:4px 0;">No pending tasks</div>';
       return;
     }
     el.innerHTML = pending.slice(0, 3).map(t => `
