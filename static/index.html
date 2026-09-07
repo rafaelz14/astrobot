@@ -224,6 +224,13 @@
   }
   .device.vk-open .modal-card{ max-height:none; }
   .device.vk-open .view.active{ padding-bottom:300px; }
+
+  /* Overlay negro tras inactividad — el toque solo despierta, no pulsa nada debajo */
+  #idle-overlay{
+    display:none; position:absolute; inset:0; z-index:200;
+    background:#000; cursor:none; touch-action:none;
+  }
+  #idle-overlay.active{ display:block; }
 </style>
 </head>
 <body>
@@ -487,6 +494,9 @@
   <div id="vkbd" class="vkbd" aria-hidden="true">
     <div class="vkbd-rows" id="vkbd-rows"></div>
   </div>
+
+  <!-- Pantalla negra tras 10 min idle; un toque la quita sin activar la UI debajo -->
+  <div id="idle-overlay" aria-hidden="true"></div>
 
 </div>
 
@@ -1723,6 +1733,40 @@
   loadVersion();
   loadWeather();
   setInterval(loadWeather, 15 * 60 * 1000); // refrescar cada 15 min, igual que la caché del backend
+
+  // --- Idle: overlay negro tras 10 min sin tocar; despertar al tocar ---
+  const IDLE_MS = 10 * 60 * 1000;
+  let idleTimer = null;
+  let screenAsleep = false;
+  const idleOverlay = document.getElementById('idle-overlay');
+
+  function resetIdle() {
+    if (screenAsleep) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(goToSleep, IDLE_MS);
+  }
+
+  function goToSleep() {
+    screenAsleep = true;
+    idleOverlay.classList.add('active');
+    idleOverlay.setAttribute('aria-hidden', 'false');
+  }
+
+  function wakeFromIdle(e) {
+    if (!screenAsleep) return;
+    e.preventDefault();
+    e.stopPropagation();
+    screenAsleep = false;
+    idleOverlay.classList.remove('active');
+    idleOverlay.setAttribute('aria-hidden', 'true');
+    resetIdle();
+  }
+
+  ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel'].forEach(ev => {
+    document.addEventListener(ev, resetIdle, { passive: true });
+  });
+  idleOverlay.addEventListener('pointerdown', wakeFromIdle, { capture: true });
+  resetIdle();
 </script>
 
 
