@@ -29,3 +29,4 @@ photos/*
 # Editor
 .vscode/
 .idea/
+.claude/
