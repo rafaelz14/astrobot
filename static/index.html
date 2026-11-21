@@ -225,10 +225,13 @@
   .device.vk-open .modal-card{ max-height:none; }
   .device.vk-open .view.active{ padding-bottom:300px; }
 
-  /* Overlay negro tras inactividad — el toque solo despierta, no pulsa nada debajo */
+  /* Overlay negro tras inactividad — el toque solo despierta, no pulsa nada debajo.
+     fixed + z-index alto: cubre todo el viewport y recibe el toque aunque
+     haya overflow/transform en .device (importante en Chromium del Pi). */
   #idle-overlay{
-    display:none; position:absolute; inset:0; z-index:200;
-    background:#000; cursor:none; touch-action:none;
+    display:none; position:fixed; inset:0; z-index:9999;
+    background:#000; cursor:none; touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
   }
   #idle-overlay.active{ display:block; }
 </style>
@@ -1699,11 +1702,9 @@
   updateMonthLabel();
   updateWeekRangeLabel();
   tickClocks();
-  setInterval(tickClocks, 1000);
   loadTimezones();
 
   renderHomePhotoMini(); // arranca con los gradientes de ejemplo; loadPhotos() los sustituye si hay fotos reales
-  photoTimer = setInterval(rotatePhotos, 10000);
   loadPhotos();
 
   // Estos ya vienen del backend real:
@@ -1717,8 +1718,6 @@
   // sin tener que tocar nada en la pantalla de la pared.
   loadHomeWeekEvents();
   loadCalendarMonthEvents();
-  setInterval(loadHomeWeekEvents, 2 * 60 * 1000);
-  setInterval(loadCalendarMonthEvents, 2 * 60 * 1000);
 
   checkGoogleStatus().then(() => {
     const el = document.getElementById('settings-gcal-status');
@@ -1732,13 +1731,36 @@
   refreshWifiStatusRow();
   loadVersion();
   loadWeather();
-  setInterval(loadWeather, 15 * 60 * 1000); // refrescar cada 15 min, igual que la caché del backend
 
   // --- Idle: overlay negro tras 10 min sin tocar; despertar al tocar ---
+  // En el Pi 3, dejar fotos/API corriendo debajo del overlay negro agota
+  // RAM/GPU y Chromium se queda como "colgado" — al despertar no responde.
   const IDLE_MS = 10 * 60 * 1000;
   let idleTimer = null;
   let screenAsleep = false;
+  let clockTimer = null;
+  let eventsTimer = null;
+  let weatherTimer = null;
   const idleOverlay = document.getElementById('idle-overlay');
+
+  function startLiveTimers() {
+    if (!clockTimer) clockTimer = setInterval(tickClocks, 1000);
+    if (!photoTimer) photoTimer = setInterval(rotatePhotos, 10000);
+    if (!eventsTimer) {
+      eventsTimer = setInterval(() => {
+        loadHomeWeekEvents();
+        loadCalendarMonthEvents();
+      }, 2 * 60 * 1000);
+    }
+    if (!weatherTimer) weatherTimer = setInterval(loadWeather, 15 * 60 * 1000);
+  }
+
+  function stopLiveTimers() {
+    clearInterval(clockTimer); clockTimer = null;
+    clearInterval(photoTimer); photoTimer = null;
+    clearInterval(eventsTimer); eventsTimer = null;
+    clearInterval(weatherTimer); weatherTimer = null;
+  }
 
   function resetIdle() {
     if (screenAsleep) return;
@@ -1748,24 +1770,34 @@
 
   function goToSleep() {
     screenAsleep = true;
+    stopLiveTimers();
     idleOverlay.classList.add('active');
     idleOverlay.setAttribute('aria-hidden', 'false');
   }
 
   function wakeFromIdle(e) {
     if (!screenAsleep) return;
-    e.preventDefault();
-    e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     screenAsleep = false;
     idleOverlay.classList.remove('active');
     idleOverlay.setAttribute('aria-hidden', 'true');
+    tickClocks();
+    startLiveTimers();
     resetIdle();
   }
 
   ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel'].forEach(ev => {
     document.addEventListener(ev, resetIdle, { passive: true });
   });
-  idleOverlay.addEventListener('pointerdown', wakeFromIdle, { capture: true });
+  // touchstart + pointerdown: en pantallas táctiles del Pi a veces solo
+  // llega uno de los dos; capture para ganar al resto de la UI.
+  ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(ev => {
+    idleOverlay.addEventListener(ev, wakeFromIdle, { capture: true });
+  });
+  startLiveTimers();
   resetIdle();
 </script>
 
